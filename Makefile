@@ -116,12 +116,17 @@ init-db: ## Initialiser la base de données
 
 init-db-force: ## Forcer la réinitialisation de la base de données
 	@echo "$(RED)⚠️  This will DROP and recreate all tables!$(NC)"
-	@read -p "Are you sure? [y/N] " -n 1 -r; \
-	echo; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		docker-compose exec -T postgres psql -U vocalyx -d vocalyx_db -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"; \
-		$(MAKE) init-db; \
-	fi
+	@echo "Are you sure? [y/N] \c"
+	@read REPLY; \
+	case "$$REPLY" in \
+		[Yy]*) \
+			docker-compose exec -T postgres psql -U vocalyx -d vocalyx_db -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"; \
+			$(MAKE) init-db; \
+			;; \
+		*) \
+			echo "Aborted."; \
+			;; \
+	esac
 
 db-shell: ## Ouvrir un shell PostgreSQL
 	docker-compose exec postgres psql -U vocalyx -d vocalyx_db
@@ -162,12 +167,17 @@ celery-stats: ## Statistiques des workers Celery
 
 celery-purge: ## Purger toutes les tâches en attente (⚠️ DANGER)
 	@echo "$(RED)⚠️  This will delete all pending tasks!$(NC)"
-	@read -p "Are you sure? [y/N] " -n 1 -r; \
-	echo; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		docker-compose exec vocalyx-transcribe-01 celery -A worker.celery_app purge -f; \
-		echo "$(GREEN)✓ Tasks purged$(NC)"; \
-	fi
+	@echo "Are you sure? [y/N] \c"
+	@read REPLY; \
+	case "$$REPLY" in \
+		[Yy]*) \
+			docker-compose exec vocalyx-transcribe-01 celery -A worker.celery_app purge -f; \
+			echo "$(GREEN)✓ Tasks purged$(NC)"; \
+			;; \
+		*) \
+			echo "Aborted."; \
+			;; \
+	esac
 
 # ==========================================================================
 # NETTOYAGE
@@ -180,12 +190,17 @@ clean: ## Arrêter et supprimer les conteneurs (préserve les volumes)
 
 clean-all: ## Arrêter et tout supprimer (conteneurs + volumes)
 	@echo "$(RED)⚠️  This will delete all data!$(NC)"
-	@read -p "Are you sure? [y/N] " -n 1 -r; \
-	echo; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		docker-compose down -v; \
-		echo "$(GREEN)✓ Everything removed$(NC)"; \
-	fi
+	@echo "Are you sure? [y/N] \c"
+	@read REPLY; \
+	case "$$REPLY" in \
+		[Yy]*) \
+			docker-compose down -v; \
+			echo "$(GREEN)✓ Everything removed$(NC)"; \
+			;; \
+		*) \
+			echo "Aborted."; \
+			;; \
+	esac
 
 clean-uploads: ## Nettoyer les fichiers uploadés
 	@echo "$(BLUE)Cleaning uploads...$(NC)"
