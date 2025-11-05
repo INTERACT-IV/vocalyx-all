@@ -106,9 +106,9 @@ db-shell: ## Ouvrir un shell PostgreSQL
 
 db-backup: ## Sauvegarder la base de données
 	@echo "$(BLUE)Creating database backup...$(NC)"
-	mkdir -p backups
-	docker-compose exec -T postgres pg_dump -U vocalyx vocalyx_db > backups/vocalyx_backup_$$(date +%Y%m%d_%H%M%S).sql
-	@echo "$(GREEN)✓ Backup created in backups/$(NC)"
+	mkdir -p shared/backups
+	docker-compose exec -T postgres pg_dump -U vocalyx vocalyx_db > shared/backups/vocalyx_backup_$$(date +%Y%m%d_%H%M%S).sql
+	@echo "$(GREEN)✓ Backup created in shared/backups/$(NC)"
 
 db-restore: ## Restaurer la base de données (usage: make db-restore FILE=backup.sql)
 	@if [ -z "$(FILE)" ]; then \
@@ -167,12 +167,12 @@ clean-all: ## Arrêter et tout supprimer (conteneurs + volumes)
 
 clean-uploads: ## Nettoyer les fichiers uploadés
 	@echo "$(BLUE)Cleaning uploads...$(NC)"
-	rm -rf shared_uploads/*
+	rm -rf shared/uploads/*
 	@echo "$(GREEN)✓ Uploads cleaned$(NC)"
 
 clean-logs: ## Nettoyer les logs
 	@echo "$(BLUE)Cleaning logs...$(NC)"
-	rm -rf shared_logs/*
+	rm -rf shared/logs/*
 	@echo "$(GREEN)✓ Logs cleaned$(NC)"
 
 prune: ## Nettoyer les images et volumes inutilisés
@@ -231,7 +231,7 @@ install: ## Installation complète (1ère fois)
 	@if [ ! -f .env ]; then cp .env.example .env; echo "$(GREEN)✓ .env created$(NC)"; else echo "$(GREEN)✓ .env already exists$(NC)"; fi
 	@echo ""
 	@echo "2. Creating directories..."
-	@mkdir -p shared_uploads shared_logs whisper_models backups
+	@mkdir -p shared/logs shared/uploads shared/models shared/backups
 	@echo "$(GREEN)✓ Directories created$(NC)"
 	@echo ""
 	@echo "3. Building images..."

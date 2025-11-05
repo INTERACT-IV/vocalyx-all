@@ -86,8 +86,8 @@ services:
       LOG_LEVEL: INFO
       LOG_COLORED: "false"  # Pas de couleurs dans Docker
     volumes:
-      - ./shared_uploads:/app/shared_uploads
-      - ./shared_logs:/app/logs
+      - ./shared/uploads:/app/shared_uploads
+      - ./shared/logs:/app/logs
     ports:
       - "8000:8000"
     depends_on:
@@ -125,7 +125,7 @@ services:
       LOG_LEVEL: INFO
       LOG_COLORED: "false"
     volumes:
-      - ./shared_logs:/app/logs
+      - ./shared/logs:/app/logs
     ports:
       - "8080:8080"
     depends_on:
@@ -175,9 +175,9 @@ services:
       LOG_LEVEL: INFO
       LOG_COLORED: "false"
     volumes:
-      - ./shared_uploads:/app/shared_uploads
-      - ./whisper_models:/app/models
-      - ./shared_logs:/app/logs
+      - ./shared/uploads:/app/shared_uploads
+      - ./shared/models:/app/models
+      - ./shared/logs:/app/logs
     depends_on:
       - redis
       - vocalyx-api
@@ -227,9 +227,9 @@ services:
       LOG_LEVEL: INFO
       LOG_COLORED: "false"
     volumes:
-      - ./shared_uploads:/app/shared_uploads
-      - ./whisper_models:/app/models
-      - ./shared_logs:/app/logs
+      - ./shared/uploads:/app/shared_uploads
+      - ./shared/models:/app/models
+      - ./shared/logs:/app/logs
     depends_on:
       - redis
       - vocalyx-api
