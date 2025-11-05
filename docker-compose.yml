@@ -1,16 +1,10 @@
-version: '3.8'
-
 # ============================================================================
 # VOCALYX - Architecture Microservices Complète
 # ============================================================================
-# Services:
-# - postgres: Base de données PostgreSQL
-# - redis: Broker Celery + Cache
-# - vocalyx-api: API centrale (propriétaire de la DB)
-# - vocalyx-frontend: Interface web (anciennement dashboard)
-# - vocalyx-transcribe-01: Worker Celery #1
-# - vocalyx-transcribe-02: Worker Celery #2 (scalable)
-# - flower: Monitoring Celery (optionnel)
+# ✅ CHANGEMENTS:
+# - Supprimé l'attribut 'version' (obsolète dans Docker Compose v2+)
+# - Ajouté des limites de ressources (memory limits) pour éviter OOM
+# - Worker Whisper: 4GB max (le modèle charge en RAM)
 # ============================================================================
 
 services:
@@ -84,7 +78,7 @@ services:
       
       # Logging
       LOG_LEVEL: INFO
-      LOG_COLORED: "false"  # Pas de couleurs dans Docker
+      LOG_COLORED: "false"
     volumes:
       - ./shared/uploads:/app/shared_uploads
       - ./shared/logs:/app/logs
@@ -97,6 +91,13 @@ services:
         condition: service_healthy
     networks:
       - vocalyx-network
+    # ✅ AJOUT: Limites de ressources
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -132,6 +133,13 @@ services:
       - vocalyx-api
     networks:
       - vocalyx-network
+    # ✅ AJOUT: Limites de ressources
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -183,6 +191,13 @@ services:
       - vocalyx-api
     networks:
       - vocalyx-network
+    # ✅ AJOUT: Limites de ressources (Whisper consomme beaucoup)
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
     # Commande de démarrage
     command: >
       celery -A worker.celery_app worker
@@ -235,6 +250,13 @@ services:
       - vocalyx-api
     networks:
       - vocalyx-network
+    # ✅ AJOUT: Limites de ressources
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
     command: >
       celery -A worker.celery_app worker
       --loglevel=info
@@ -258,6 +280,13 @@ services:
       - redis
     networks:
       - vocalyx-network
+    # ✅ AJOUT: Limites de ressources
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
     command: >
       celery --broker=redis://redis:6379/0 flower
       --port=5555

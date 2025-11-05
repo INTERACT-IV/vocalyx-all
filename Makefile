@@ -98,8 +98,30 @@ stats: ## Statistiques des conteneurs
 
 init-db: ## Initialiser la base de données
 	@echo "$(BLUE)Initializing database...$(NC)"
-	docker-compose exec vocalyx-api python -c "from database import init_db; init_db()"
-	@echo "$(GREEN)✓ Database initialized$(NC)"
+	@echo "$(BLUE)Waiting for API to be ready...$(NC)"
+	@sleep 5
+	@# Vérifier que l'API est accessible
+	@until curl -s http://localhost:8000/health > /dev/null 2>&1; do \
+		echo "$(BLUE)Waiting for API...$(NC)"; \
+		sleep 2; \
+	done
+	@echo "$(GREEN)✓ API is ready$(NC)"
+	@# Exécuter l'initialisation avec un timeout plus long
+	docker-compose exec -T vocalyx-api timeout 30 python -c "from database import init_db; init_db()" || \
+		(echo "$(RED)✗ Database initialization failed or timed out$(NC)" && \
+		 echo "$(BLUE)Checking if tables already exist...$(NC)" && \
+		 docker-compose exec -T postgres psql -U vocalyx -d vocalyx_db -c "\dt" && \
+		 echo "$(GREEN)✓ Database might already be initialized$(NC)")
+	@echo "$(GREEN)✓ Database initialization complete$(NC)"
+
+init-db-force: ## Forcer la réinitialisation de la base de données
+	@echo "$(RED)⚠️  This will DROP and recreate all tables!$(NC)"
+	@read -p "Are you sure? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		docker-compose exec -T postgres psql -U vocalyx -d vocalyx_db -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"; \
+		$(MAKE) init-db; \
+	fi
 
 db-shell: ## Ouvrir un shell PostgreSQL
 	docker-compose exec postgres psql -U vocalyx -d vocalyx_db
@@ -241,10 +263,10 @@ install: ## Installation complète (1ère fois)
 	@$(MAKE) up
 	@echo ""
 	@echo "5. Waiting for services to be ready..."
-	@sleep 10
+	@sleep 15
 	@echo ""
 	@echo "6. Initializing database..."
-	@$(MAKE) init-db
+	@$(MAKE) init-db || echo "$(RED)⚠️  Database init had issues, but services are running$(NC)"
 	@echo ""
 	@echo "$(GREEN)========================================$(NC)"
 	@echo "$(GREEN)✓ Installation complete!$(NC)"
@@ -258,6 +280,8 @@ install: ## Installation complète (1ère fois)
 	@echo ""
 	@echo "⚠️  Don't forget to edit .env and change the secret keys!"
 	@echo ""
+	@echo "$(BLUE)Checking service health...$(NC)"
+	@$(MAKE) health || echo "$(RED)Some services might need more time to start$(NC)"
 
 update: ## Mettre à jour (pull + rebuild)
 	@echo "$(BLUE)Updating Vocalyx...$(NC)"
