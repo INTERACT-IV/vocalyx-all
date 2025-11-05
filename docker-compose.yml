@@ -1,0 +1,284 @@
+version: '3.8'
+
+# ============================================================================
+# VOCALYX - Architecture Microservices Complète
+# ============================================================================
+# Services:
+# - postgres: Base de données PostgreSQL
+# - redis: Broker Celery + Cache
+# - vocalyx-api: API centrale (propriétaire de la DB)
+# - vocalyx-frontend: Interface web (anciennement dashboard)
+# - vocalyx-transcribe-01: Worker Celery #1
+# - vocalyx-transcribe-02: Worker Celery #2 (scalable)
+# - flower: Monitoring Celery (optionnel)
+# ============================================================================
+
+services:
+  # ==========================================================================
+  # BASE DE DONNÉES - PostgreSQL
+  # ==========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: vocalyx-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: vocalyx_db
+      POSTGRES_USER: vocalyx
+      POSTGRES_PASSWORD: vocalyx_secret
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - vocalyx-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vocalyx"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================================
+  # REDIS - Broker Celery + Cache
+  # ==========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: vocalyx-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - vocalyx-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================================================
+  # API CENTRALE - vocalyx-api
+  # ==========================================================================
+  vocalyx-api:
+    build:
+      context: ./vocalyx-api
+      dockerfile: Dockerfile
+    container_name: vocalyx-api
+    restart: unless-stopped
+    environment:
+      # Database
+      DATABASE_URL: postgresql://vocalyx:vocalyx_secret@postgres:5432/vocalyx_db
+      
+      # Redis & Celery
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      
+      # Sécurité (⚠️ CHANGER EN PRODUCTION)
+      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
+      ADMIN_PROJECT_NAME: ISICOMTECH
+      
+      # CORS
+      CORS_ORIGINS: http://localhost:8080,http://vocalyx-frontend:8080
+      
+      # Logging
+      LOG_LEVEL: INFO
+      LOG_COLORED: "false"  # Pas de couleurs dans Docker
+    volumes:
+      - ./shared_uploads:/app/shared_uploads
+      - ./shared_logs:/app/logs
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - vocalyx-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==========================================================================
+  # FRONTEND - vocalyx-frontend (anciennement dashboard)
+  # ==========================================================================
+  vocalyx-frontend:
+    build:
+      context: ./vocalyx-frontend
+      dockerfile: Dockerfile
+    container_name: vocalyx-frontend
+    restart: unless-stopped
+    environment:
+      # API URL
+      VOCALYX_API_URL: http://vocalyx-api:8000
+      
+      # Sécurité (⚠️ DOIT être identique à vocalyx-api)
+      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
+      ADMIN_PROJECT_NAME: ISICOMTECH
+      
+      # Logging
+      LOG_LEVEL: INFO
+      LOG_COLORED: "false"
+    volumes:
+      - ./shared_logs:/app/logs
+    ports:
+      - "8080:8080"
+    depends_on:
+      - vocalyx-api
+    networks:
+      - vocalyx-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ==========================================================================
+  # WORKER TRANSCRIPTION #1 - vocalyx-transcribe
+  # ==========================================================================
+  vocalyx-transcribe-01:
+    build:
+      context: ./vocalyx-transcribe
+      dockerfile: Dockerfile
+    container_name: vocalyx-transcribe-01
+    restart: unless-stopped
+    environment:
+      # Instance
+      INSTANCE_NAME: worker-01
+      
+      # API
+      VOCALYX_API_URL: http://vocalyx-api:8000
+      
+      # Celery
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      
+      # Whisper
+      WHISPER_MODEL: ./models/openai-whisper-small
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
+      WHISPER_LANGUAGE: fr
+      
+      # Performance
+      MAX_WORKERS: 2
+      VAD_ENABLED: "true"
+      
+      # Sécurité (⚠️ DOIT être identique à vocalyx-api)
+      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
+      
+      # Logging
+      LOG_LEVEL: INFO
+      LOG_COLORED: "false"
+    volumes:
+      - ./shared_uploads:/app/shared_uploads
+      - ./whisper_models:/app/models
+      - ./shared_logs:/app/logs
+    depends_on:
+      - redis
+      - vocalyx-api
+    networks:
+      - vocalyx-network
+    # Commande de démarrage
+    command: >
+      celery -A worker.celery_app worker
+      --loglevel=info
+      --concurrency=2
+      --hostname=worker-01@%h
+
+  # ==========================================================================
+  # WORKER TRANSCRIPTION #2 - vocalyx-transcribe (SCALABLE)
+  # ==========================================================================
+  vocalyx-transcribe-02:
+    build:
+      context: ./vocalyx-transcribe
+      dockerfile: Dockerfile
+    container_name: vocalyx-transcribe-02
+    restart: unless-stopped
+    environment:
+      # Instance
+      INSTANCE_NAME: worker-02
+      
+      # API
+      VOCALYX_API_URL: http://vocalyx-api:8000
+      
+      # Celery
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      
+      # Whisper
+      WHISPER_MODEL: ./models/openai-whisper-small
+      WHISPER_DEVICE: cpu
+      WHISPER_COMPUTE_TYPE: int8
+      WHISPER_LANGUAGE: fr
+      
+      # Performance
+      MAX_WORKERS: 2
+      VAD_ENABLED: "true"
+      
+      # Sécurité (⚠️ DOIT être identique à vocalyx-api)
+      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
+      
+      # Logging
+      LOG_LEVEL: INFO
+      LOG_COLORED: "false"
+    volumes:
+      - ./shared_uploads:/app/shared_uploads
+      - ./whisper_models:/app/models
+      - ./shared_logs:/app/logs
+    depends_on:
+      - redis
+      - vocalyx-api
+    networks:
+      - vocalyx-network
+    command: >
+      celery -A worker.celery_app worker
+      --loglevel=info
+      --concurrency=2
+      --hostname=worker-02@%h
+
+  # ==========================================================================
+  # MONITORING CELERY - Flower (OPTIONNEL)
+  # ==========================================================================
+  flower:
+    image: mher/flower:2.0
+    container_name: vocalyx-flower
+    restart: unless-stopped
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      FLOWER_PORT: 5555
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    networks:
+      - vocalyx-network
+    command: >
+      celery --broker=redis://redis:6379/0 flower
+      --port=5555
+      --url_prefix=flower
+
+# ============================================================================
+# VOLUMES PERSISTANTS
+# ============================================================================
+volumes:
+  # Base de données PostgreSQL
+  postgres_data:
+    driver: local
+  
+  # Cache Redis
+  redis_data:
+    driver: local
+
+# ============================================================================
+# NETWORK
+# ============================================================================
+networks:
+  vocalyx-network:
+    driver: bridge
+    name: vocalyx-network
