@@ -75,6 +75,8 @@ services:
       
       # CORS
       CORS_ORIGINS: http://localhost:8080,http://vocalyx-frontend:8080
+
+      UPLOAD_DIR: /app/shared_uploads
       
       # Logging
       LOG_LEVEL: INFO
@@ -176,13 +178,16 @@ services:
       # Performance
       MAX_WORKERS: 2
       VAD_ENABLED: "true"
+
+      UPLOAD_DIR: /app/shared_uploads
       
       # Sécurité (⚠️ DOIT être identique à vocalyx-api)
       INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
       
       # Logging
       LOG_LEVEL: INFO
-      LOG_COLORED: "false"
+      LOG_COLORED: "true"
+      LOG_FILE_PATH: /app/logs/vocalyx-transcribe-01.log
     volumes:
       - ./shared/uploads:/app/shared_uploads
       - ./shared/models:/app/models
@@ -237,13 +242,16 @@ services:
       # Performance
       MAX_WORKERS: 2
       VAD_ENABLED: "true"
+
+      UPLOAD_DIR: /app/shared_uploads
       
       # Sécurité (⚠️ DOIT être identique à vocalyx-api)
       INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
       
       # Logging
       LOG_LEVEL: INFO
-      LOG_COLORED: "false"
+      LOG_COLORED: "true"
+      LOG_FILE_PATH: /app/logs/vocalyx-transcribe-02.log
     volumes:
       - ./shared/uploads:/app/shared_uploads
       - ./shared/models:/app/models
