@@ -216,65 +216,65 @@ services:
   # ==========================================================================
   # WORKER TRANSCRIPTION #2 - vocalyx-transcribe (SCALABLE)
   # ==========================================================================
-  vocalyx-transcribe-02:
-    build:
-      context: ./vocalyx-transcribe
-      dockerfile: Dockerfile
-    container_name: vocalyx-transcribe-02
-    restart: unless-stopped
-    environment:
-      # Instance
-      INSTANCE_NAME: worker-02
-      
-      # API
-      VOCALYX_API_URL: http://vocalyx-api:8000
-      
-      # Celery
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      
-      # Whisper
-      WHISPER_MODEL: ./models/openai-whisper-small
-      WHISPER_DEVICE: cpu
-      WHISPER_COMPUTE_TYPE: int8
-      WHISPER_LANGUAGE: fr
-      
-      # Performance
-      MAX_WORKERS: 2
-      VAD_ENABLED: "true"
-  
-      UPLOAD_DIR: /app/shared_uploads
-      
-      # Sécurité (⚠️ DOIT être identique à vocalyx-api)
-      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
-      
-      # Logging
-      LOG_LEVEL: INFO
-      LOG_COLORED: "true"
-      LOG_FILE_PATH: /app/logs/vocalyx-transcribe-02.log
-    volumes:
-      - ./shared/uploads:/app/shared_uploads
-      - ./shared/models:/app/models
-      - ./shared/logs:/app/logs
-    depends_on:
-      redis:
-        condition: service_healthy
-      vocalyx-api:
-        condition: service_healthy
-    networks:
-      - vocalyx-network
-    # ✅ AJOUT: Limites de ressources
-    deploy:
-      resources:
-        limits:
-          memory: 8G
-        reservations:
-          memory: 4G
-    command: >
-      celery -A worker.celery_app worker
-      --loglevel=info
-      --concurrency=2
-      --hostname=worker-02@%h
+  #vocalyx-transcribe-02:
+  #  build:
+  #    context: ./vocalyx-transcribe
+  #    dockerfile: Dockerfile
+  #  container_name: vocalyx-transcribe-02
+  #  restart: unless-stopped
+  #  environment:
+  #    # Instance
+  #    INSTANCE_NAME: worker-02
+  #    
+  #    # API
+  #    VOCALYX_API_URL: http://vocalyx-api:8000
+  #    
+  #    # Celery
+  #    CELERY_BROKER_URL: redis://redis:6379/0
+  #    CELERY_RESULT_BACKEND: redis://redis:6379/0
+  #    
+  #    # Whisper
+  #    WHISPER_MODEL: ./models/openai-whisper-small
+  #    WHISPER_DEVICE: cpu
+  #    WHISPER_COMPUTE_TYPE: int8
+  #    WHISPER_LANGUAGE: fr
+  #    
+  #    # Performance
+  #    MAX_WORKERS: 2
+  #    VAD_ENABLED: "true"
+  #
+  #    UPLOAD_DIR: /app/shared_uploads
+  #    
+  #    # Sécurité (⚠️ DOIT être identique à vocalyx-api)
+  #    INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
+  #    
+  #    # Logging
+  #    LOG_LEVEL: INFO
+  #    LOG_COLORED: "true"
+  #    LOG_FILE_PATH: /app/logs/vocalyx-transcribe-02.log
+  #  volumes:
+  #    - ./shared/uploads:/app/shared_uploads
+  #    - ./shared/models:/app/models
+  #    - ./shared/logs:/app/logs
+  #  depends_on:
+  #    redis:
+  #      condition: service_healthy
+  #    vocalyx-api:
+  #      condition: service_healthy
+  #  networks:
+  #    - vocalyx-network
+  #  # ✅ AJOUT: Limites de ressources
+  #  deploy:
+  #    resources:
+  #      limits:
+  #        memory: 8G
+  #      reservations:
+  #        memory: 4G
+  #  command: >
+  #    celery -A worker.celery_app worker
+  #    --loglevel=info
+  #    --concurrency=2
+  #    --hostname=worker-02@%h
 
   # ==========================================================================
   # MONITORING CELERY - Flower (OPTIONNEL)
