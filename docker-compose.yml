@@ -81,6 +81,7 @@ services:
       # Logging
       LOG_LEVEL: INFO
       LOG_COLORED: "false"
+      LOG_FILE_PATH: /app/logs/vocalyx-api.log
     volumes:
       - ./shared/uploads:/app/shared_uploads
       - ./shared/logs:/app/logs
@@ -127,6 +128,7 @@ services:
       # Logging
       LOG_LEVEL: INFO
       LOG_COLORED: "false"
+      LOG_FILE_PATH: /app/logs/vocalyx-frontend.log
     volumes:
       - ./shared/logs:/app/logs
     ports:
@@ -212,6 +214,8 @@ services:
       --loglevel=info
       --concurrency=2
       --hostname=worker-01@%h
+      --without-gossip
+      --without-mingle
 
   # ==========================================================================
   # WORKER TRANSCRIPTION #2 - vocalyx-transcribe (SCALABLE)
