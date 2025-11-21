@@ -1,102 +1,63 @@
-# 🎙️ Vocalyx - Audio Transcription Platform
+# Vocalyx
 
-Architecture microservices pour la transcription audio avec Faster-Whisper et Celery.
+Plateforme de transcription audio automatique basée sur une architecture microservices.
 
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.104-green.svg)](https://fastapi.tiangolo.com/)
-[![Celery](https://img.shields.io/badge/Celery-5.3-brightgreen.svg)](https://docs.celeryproject.org/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://www.docker.com/)
+## Architecture
 
----
+Vocalyx est composé de trois modules principaux :
 
-## 📐 Architecture
+- **vocalyx-api** : API centrale REST et WebSocket pour la gestion des transcriptions
+- **vocalyx-frontend** : Interface web dashboard pour l'administration et le suivi
+- **vocalyx-transcribe** : Workers Celery pour le traitement audio avec Whisper
+
+### Infrastructure
+
+- **PostgreSQL** : Base de données relationnelle pour le stockage des métadonnées
+- **Redis** : Broker de messages pour Celery et cache
+- **Docker Compose** : Orchestration des services
+
+## Structure du projet
 
 ```
-┌──────────────────┐
-│   Utilisateur    │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  vocalyx-        │────►│  vocalyx-        │────►│   PostgreSQL     │
-│  frontend        │     │  api             │     └──────────────────┘
-│  (Port 8080)     │     │  (Port 8000)     │
-└──────────────────┘     └────────┬─────────┘
-                                  │
-                    ┌─────────────┴─────────────┐
-                    │                           │
-                    ▼                           ▼
-         ┌──────────────────┐       ┌──────────────────┐
-         │   Redis          │       │  vocalyx-        │
-         │   (Celery)       │◄──────│  transcribe      │
-         └──────────────────┘       │  (Workers)       │
-                                    └──────────────────┘
+vocalyx-all/
+├── vocalyx-api/          # API centrale
+├── vocalyx-frontend/     # Interface web
+├── vocalyx-transcribe/   # Workers de transcription
+├── shared/               # Ressources partagées
+│   ├── logs/            # Fichiers de logs
+│   ├── uploads/         # Fichiers audio uploadés
+│   └── models/          # Modèles Whisper et Pyannote
+├── docker-compose.yml    # Configuration Docker Compose
+└── Makefile             # Commandes de gestion
 ```
 
-### Services
-
-| Service | Port | Rôle |
-|---------|------|------|
-| **vocalyx-api** | 8000 | API REST centrale, propriétaire de la DB |
-| **vocalyx-frontend** | 8080 | Interface web utilisateur |
-| **vocalyx-transcribe** | - | Workers Celery pour transcription Whisper |
-| **postgres** | 5432 | Base de données |
-| **redis** | 6379 | Broker Celery + Cache |
-| **flower** | 5555 | Monitoring Celery (optionnel) |
-
----
-
-## 🚀 Quick Start
+## Démarrage rapide
 
 ### Prérequis
 
-- Docker & Docker Compose
-- Git
+- Docker et Docker Compose
+- 8 GB de RAM minimum (16 GB recommandé pour les workers)
+- Espace disque suffisant pour les modèles (~5 GB)
 
-### Installation Automatique
+### Installation
 
 ```bash
-# Cloner le dépôt
-git clone <repository>
-cd vocalyx
-
-# Installation complète (crée .env, build, démarre, initialise la DB)
+# Installation complète
 make install
-```
 
-**C'est tout !** L'application est accessible sur :
-- Frontend: http://localhost:8080
-- API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-- Flower: http://localhost:5555
-
-### Installation Manuelle
-
-```bash
-# 1. Copier le fichier d'environnement
-cp .env.example .env
-
-# 2. Éditer .env et changer les secrets
-nano .env
-
-# 3. Créer les répertoires
-mkdir -p shared_uploads shared_logs whisper_models backups
-
-# 4. Construire les images
+# Ou manuellement
 docker-compose build
-
-# 5. Démarrer les services
 docker-compose up -d
-
-# 6. Initialiser la base de données
-docker-compose exec vocalyx-api python -c "from database import init_db; init_db()"
+make init-db
 ```
 
----
+### Accès aux services
 
-## 📋 Commandes Utiles
+- **Frontend** : http://localhost:8080
+- **API** : http://localhost:8000
+- **Documentation API** : http://localhost:8000/docs
 
-### Gestion des Services
+## Commandes principales
 
 ```bash
 # Démarrer tous les services
@@ -105,339 +66,68 @@ make up
 # Arrêter tous les services
 make down
 
-# Redémarrer tous les services
-make restart
-
-# Voir les logs en temps réel
+# Voir les logs
 make logs
-
-# Statut des conteneurs
-make ps
 
 # Vérifier la santé des services
 make health
-```
 
-### Logs par Service
-
-```bash
-make logs-api          # Logs de l'API
-make logs-frontend     # Logs du frontend
-make logs-worker-01    # Logs du worker 01
-make logs-worker-02    # Logs du worker 02
-```
-
-### Workers Celery
-
-```bash
-# Scaler les workers (exemple: 4 workers)
-make scale-workers N=4
-
-# Statut des workers
-make celery-status
-
-# Statistiques des workers
-make celery-stats
-
-# Purger les tâches en attente
-make celery-purge
-```
-
-### Base de Données
-
-```bash
-# Sauvegarder la DB
-make db-backup
-
-# Restaurer la DB
-make db-restore FILE=backups/backup.sql
-
-# Shell PostgreSQL
-make db-shell
-```
-
-### Nettoyage
-
-```bash
-# Nettoyer les conteneurs (préserve les volumes)
-make clean
-
-# Tout supprimer (⚠️ SUPPRIME LES DONNÉES)
-make clean-all
-
-# Nettoyer les uploads
-make clean-uploads
-
-# Nettoyer les logs
-make clean-logs
-```
-
----
-
-## 🔧 Configuration
-
-### Variables d'Environnement
-
-Éditez le fichier `.env` :
-
-```bash
-# Sécurité (⚠️ CHANGER EN PRODUCTION)
-INTERNAL_API_KEY=secret_key_pour_comms_internes_123456
-ADMIN_PROJECT_NAME=ISICOMTECH
-
-# Base de données
-POSTGRES_PASSWORD=vocalyx_secret
-
-# Whisper
-WHISPER_MODEL=./models/openai-whisper-small  # tiny, base, small, medium, large
-WHISPER_DEVICE=cpu                            # cpu ou cuda (GPU)
-WHISPER_LANGUAGE=fr                           # fr, en, es, etc.
-
-# Performance
-MAX_WORKERS=2                                 # Concurrence par worker
-VAD_ENABLED=true                              # Voice Activity Detection
-```
-
-### Configuration Avancée
-
-Chaque service peut être configuré via son `config.ini` :
-
-- `vocalyx-api/config.ini`
-- `vocalyx-frontend/config.ini`
-- `vocalyx-transcribe/config.ini`
-
----
-
-## 📊 Monitoring
-
-### Flower (Monitoring Celery)
-
-Accédez à http://localhost:5555 pour visualiser :
-- Workers actifs
-- Tâches en cours / terminées / échouées
-- Statistiques en temps réel
-
-### Health Checks
-
-```bash
-# API
-curl http://localhost:8000/health
-
-# Frontend
-curl http://localhost:8080/health
-
-# Tous les services
-make health
-```
-
-### Logs
-
-```bash
-# Temps réel
-make logs
-
-# Logs d'un service spécifique
-docker-compose logs -f vocalyx-api
-```
-
----
-
-## 🔒 Sécurité
-
-### ⚠️ IMPORTANT - En Production
-
-1. **Changez les secrets dans `.env`** :
-   ```bash
-   INTERNAL_API_KEY=<générer_une_clé_forte>
-   POSTGRES_PASSWORD=<générer_un_mot_de_passe_fort>
-   ```
-
-2. **Utilisez HTTPS** :
-   - Mettez un reverse proxy (Nginx, Traefik)
-   - Obtenez des certificats SSL (Let's Encrypt)
-
-3. **Limitez les ports exposés** :
-   - Ne pas exposer PostgreSQL (5432) publiquement
-   - Ne pas exposer Redis (6379) publiquement
-
-4. **Sauvegardez régulièrement** :
-   ```bash
-   # Créer un cron job pour les backups
-   0 2 * * * cd /path/to/vocalyx && make db-backup
-   ```
-
----
-
-## 🎯 Utilisation
-
-### 1. Créer un Projet
-
-Via l'interface web (http://localhost:8080) :
-1. Cliquez sur "Gérer les Projets"
-2. Créez un nouveau projet
-3. Récupérez la clé API générée
-
-### 2. Upload Audio
-
-**Via l'Interface Web** :
-1. Sélectionnez le projet
-2. Collez la clé API
-3. Uploadez votre fichier audio
-4. La transcription démarre automatiquement
-
-**Via l'API** :
-```bash
-curl -X POST http://localhost:8000/api/transcriptions \
-  -H "X-API-Key: vk_VOTRE_CLE_API" \
-  -F "file=@audio.wav" \
-  -F "project_name=mon_projet" \
-  -F "use_vad=true"
-```
-
-### 3. Consulter les Résultats
-
-- Interface web : http://localhost:8080
-- API : http://localhost:8000/docs
-
----
-
-## 🐛 Dépannage
-
-### Les workers ne se connectent pas
-
-```bash
-# Vérifier que Redis est accessible
-docker-compose exec vocalyx-transcribe-01 redis-cli -h redis ping
-
-# Vérifier les logs
-make logs-worker-01
-```
-
-### L'API ne démarre pas
-
-```bash
-# Vérifier que PostgreSQL est prêt
-docker-compose exec postgres pg_isready -U vocalyx
-
-# Vérifier les logs
-make logs-api
-```
-
-### "Database not initialized"
-
-```bash
 # Initialiser la base de données
 make init-db
+
+# Sauvegarder la base de données
+make db-backup
 ```
 
-### Modèle Whisper non trouvé
+Voir `make help` pour la liste complète des commandes.
 
-Le modèle est téléchargé automatiquement au premier lancement. Si échec :
+## Configuration
 
-```bash
-# Télécharger manuellement
-docker-compose exec vocalyx-transcribe-01 python -c "
-from faster_whisper import WhisperModel
-WhisperModel('small', download_root='/app/models')
-"
-```
+La configuration se fait via les variables d'environnement dans `docker-compose.yml` :
 
----
+- **Base de données** : `DATABASE_URL`
+- **Redis** : `REDIS_URL`, `CELERY_BROKER_URL`
+- **Sécurité** : `INTERNAL_API_KEY`, `ADMIN_PROJECT_NAME`
+- **Logging** : `LOG_LEVEL`, `LOG_FILE_PATH`
 
-## 📚 Documentation
+## Documentation
 
-- [API Documentation](http://localhost:8000/docs) (Swagger)
-- [vocalyx-api README](./vocalyx-api/README.md)
-- [vocalyx-frontend README](./vocalyx-frontend/README.md)
-- [vocalyx-transcribe README](./vocalyx-transcribe/README.md)
+- Documentation des logs : `DOCUMENTATION_LOGS.md`
+- Documentation API : http://localhost:8000/docs (une fois l'API démarrée)
 
----
+## Modules
 
-## 🏗️ Structure du Projet
+### vocalyx-api
 
-```
-vocalyx/
-├── vocalyx-api/              # API centrale
-├── vocalyx-frontend/         # Interface web
-├── vocalyx-transcribe/       # Workers Celery
-├── shared_uploads/           # Fichiers audio (volume partagé)
-├── shared_logs/              # Logs centralisés
-├── whisper_models/           # Modèles Whisper (volume)
-├── backups/                  # Sauvegardes DB
-├── docker-compose.yml        # Orchestration Docker
-├── .env.example              # Variables d'environnement
-├── Makefile                  # Commandes utiles
-└── README.md                 # Ce fichier
-```
+API centrale FastAPI exposant :
+- Endpoints REST pour la gestion des transcriptions, projets et utilisateurs
+- WebSocket pour les mises à jour en temps réel
+- Authentification JWT
+- Intégration Celery pour la distribution des tâches
 
----
+### vocalyx-frontend
 
-## 🚀 Scalabilité
+Interface web FastAPI avec :
+- Dashboard de gestion des transcriptions
+- Authentification utilisateur
+- Interface d'administration
+- Communication WebSocket pour les mises à jour temps réel
 
-### Augmenter les Workers
+### vocalyx-transcribe
 
-```bash
-# Méthode 1 : Via le Makefile
-make scale-workers N=5
+Workers Celery pour :
+- Transcription audio avec Whisper (OpenAI)
+- Diarisation des locuteurs (Pyannote)
+- Traitement audio (VAD, segmentation)
+- Cache de modèles pour optimiser les performances
 
-# Méthode 2 : Via docker-compose
-docker-compose up -d --scale vocalyx-transcribe-01=5
-```
+## Technologies principales
 
-### Load Balancer (Production)
+- **FastAPI** : Framework web asynchrone Python
+- **Celery** : Système de files d'attente distribuées
+- **PostgreSQL** : Base de données relationnelle
+- **Redis** : Broker de messages et cache
+- **Whisper** : Modèle de transcription audio OpenAI
+- **Pyannote** : Bibliothèque de diarisation des locuteurs
+- **Docker** : Conteneurisation et orchestration
 
-Pour gérer plusieurs frontends/APIs, utilisez Nginx ou Traefik :
-
-```nginx
-upstream vocalyx_api {
-    server vocalyx-api-01:8000;
-    server vocalyx-api-02:8000;
-}
-
-upstream vocalyx_frontend {
-    server vocalyx-frontend-01:8080;
-    server vocalyx-frontend-02:8080;
-}
-```
-
----
-
-## 📝 Changelog
-
-### Version 2.0.0 (Architecture Microservices)
-- ✅ Découplage complet des services
-- ✅ Communication via API REST
-- ✅ File d'attente Celery avec Redis
-- ✅ Scalabilité horizontale native
-- ✅ Monitoring Celery Flower
-- ✅ Multi-projets avec clés API
-
-### Version 1.0.0 (Monolithique)
-- Application monolithique
-- Accès direct à la DB
-- Worker loop interne
-
----
-
-## 👥 Contributeurs
-
-- Guilhem RICHARD - Architecture & Développement
-
----
-
-## 📄 Licence
-
-Propriétaire - Tous droits réservés
-
----
-
-## 🆘 Support
-
-Pour toute question ou problème :
-1. Consultez les logs : `make logs`
-2. Vérifiez la santé : `make health`
-3. Consultez la documentation des services
-
----
-
-**Vocalyx v2.0** - Powered by FastAPI, Celery & Faster-Whisper 🎙️
