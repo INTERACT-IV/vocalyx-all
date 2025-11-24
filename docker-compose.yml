@@ -228,6 +228,66 @@ services:
       --hostname=worker-01@%h
       --without-gossip
       --without-mingle
+      -Q transcription
+
+  # ==========================================================================
+  # WORKER ENRICHISSEMENT #1 - vocalyx-enrichment
+  # ==========================================================================
+  vocalyx-enrichment-01:
+    build:
+      context: ./vocalyx-enrichment
+      dockerfile: Dockerfile
+    container_name: vocalyx-enrichment-01
+    restart: unless-stopped
+    environment:
+      # Instance
+      INSTANCE_NAME: enrichment-worker-01
+      
+      # API
+      VOCALYX_API_URL: http://vocalyx-api:8000
+      
+      # Celery
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      
+      # LLM
+      LLM_DEVICE: cpu
+      
+      # Sécurité (⚠️ DOIT être identique à vocalyx-api)
+      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
+      
+      # Logging
+      LOG_LEVEL: INFO
+      LOG_COLORED: "true"
+      LOG_FILE_PATH: /app/logs/vocalyx-enrichment-01.log
+    volumes:
+      - ./shared/logs:/app/logs
+      - ./shared/models:/app/models
+      - ./shared/models/enrichment:/app/models/enrichment
+    depends_on:
+      redis:
+        condition: service_healthy
+      vocalyx-api:
+        condition: service_healthy
+    networks:
+      - vocalyx-network
+    # ✅ AJOUT: Limites de ressources (LLM peut consommer beaucoup de RAM)
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    # Commande de démarrage
+    # Queue spécifique pour l'enrichissement
+    command: >
+      celery -A worker.celery_app worker
+      --loglevel=info
+      --concurrency=2
+      --hostname=enrichment-worker-01@%h
+      --without-gossip
+      --without-mingle
+      -Q enrichment
 
   # ==========================================================================
   # WORKER TRANSCRIPTION #2 - vocalyx-transcribe (SCALABLE)
