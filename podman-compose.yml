@@ -105,7 +105,7 @@ services:
   vocalyx-api-01:
     build:
       context: ./vocalyx-api
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
     container_name: vocalyx-api-01
     restart: unless-stopped
     environment:
@@ -159,7 +159,7 @@ services:
   vocalyx-api-02:
     build:
       context: ./vocalyx-api
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
     container_name: vocalyx-api-02
     restart: unless-stopped
     environment:
@@ -213,7 +213,7 @@ services:
   vocalyx-frontend:
     build:
       context: ./vocalyx-frontend
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
     container_name: vocalyx-frontend
     restart: unless-stopped
     environment:
@@ -259,7 +259,7 @@ services:
   vocalyx-transcribe-01:
     build:
       context: ./vocalyx-transcribe
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
     container_name: vocalyx-transcribe-01
     restart: unless-stopped
     environment:
@@ -326,7 +326,7 @@ services:
   vocalyx-enrichment-01:
     build:
       context: ./vocalyx-enrichment
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
     container_name: vocalyx-enrichment-01
     restart: unless-stopped
     environment:
@@ -384,7 +384,7 @@ services:
   vocalyx-enrichment-02:
     build:
       context: ./vocalyx-enrichment
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
     container_name: vocalyx-enrichment-02
     restart: unless-stopped
     environment:
@@ -442,7 +442,7 @@ services:
   vocalyx-transcribe-02:
     build:
       context: ./vocalyx-transcribe
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
     container_name: vocalyx-transcribe-02
     restart: unless-stopped
     environment:
@@ -509,7 +509,7 @@ services:
   vocalyx-transcribe-03:
     build:
       context: ./vocalyx-transcribe
-      dockerfile: Dockerfile
+      dockerfile: Containerfile
     container_name: vocalyx-transcribe-03
     restart: unless-stopped
     environment:
