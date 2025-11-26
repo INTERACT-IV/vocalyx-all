@@ -52,7 +52,7 @@ logs: ## Afficher les logs de tous les services
 	docker-compose logs -f
 
 logs-api: ## Logs de vocalyx-api
-	docker-compose logs -f vocalyx-api
+	docker-compose logs -f vocalyx-api-01
 
 logs-frontend: ## Logs de vocalyx-frontend
 	docker-compose logs -f vocalyx-frontend
@@ -106,8 +106,8 @@ init-db: ## Initialiser la base de données
 		sleep 2; \
 	done
 	@echo "$(GREEN)✓ API is ready$(NC)"
-	@# Exécuter l'initialisation avec un timeout plus long
-	docker-compose exec -T vocalyx-api timeout 30 python -c "from database import init_db; init_db()" || \
+	@# Exécuter l'initialisation avec un timeout plus long (via vocalyx-api-01)
+	docker-compose exec -T vocalyx-api-01 timeout 30 python -c "from database import init_db; init_db()" || \
 		(echo "$(RED)✗ Database initialization failed or timed out$(NC)" && \
 		 echo "$(BLUE)Checking if tables already exist...$(NC)" && \
 		 docker-compose exec -T postgres psql -U vocalyx -d vocalyx_db -c "\dt" && \
@@ -223,7 +223,7 @@ prune: ## Nettoyer les images et volumes inutilisés
 # ==========================================================================
 
 shell-api: ## Shell dans le conteneur API
-	docker-compose exec vocalyx-api /bin/bash
+	docker-compose exec vocalyx-api-01 /bin/bash
 
 shell-frontend: ## Shell dans le conteneur Frontend
 	docker-compose exec vocalyx-frontend /bin/bash
