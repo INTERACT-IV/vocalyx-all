@@ -1,6 +1,8 @@
-# VOCALYX - Configuration Podman/systemd
+# VOCALYX - Configuration Podman/systemd (Mode Utilisateur)
 
-Ce répertoire contient les fichiers de configuration quadlet pour déployer Vocalyx avec Podman et systemd.
+Ce répertoire contient les fichiers de configuration quadlet pour déployer Vocalyx avec Podman et systemd en **mode utilisateur** (rootless).
+
+**Mode utilisateur par défaut**: `ai-user`
 
 ## Structure des fichiers
 
@@ -10,9 +12,25 @@ Ce répertoire contient les fichiers de configuration quadlet pour déployer Voc
 
 ## Prérequis
 
-1. **Podman** installé et configuré
-2. **systemd** activé
-3. Les images Docker construites au préalable (voir ci-dessous)
+1. **Podman** installé et configuré en mode rootless
+2. **systemd** activé avec support utilisateur
+3. **Utilisateur `ai-user`** créé et configuré (ou utiliser `--user` pour spécifier un autre utilisateur)
+4. Les images Docker construites au préalable (voir ci-dessous)
+
+### Configuration de l'utilisateur
+
+Avant de déployer, assurez-vous que l'utilisateur `ai-user` existe et est configuré :
+
+```bash
+# Créer l'utilisateur (si nécessaire)
+sudo useradd -m -s /bin/bash ai-user
+
+# Activer systemd --user pour cet utilisateur (important pour que les services persistent)
+sudo loginctl enable-linger ai-user
+
+# Vérifier que Podman rootless fonctionne
+sudo -u ai-user podman info
+```
 
 ## Construction des images
 
@@ -81,150 +99,160 @@ Le script :
 
 ### Méthode manuelle
 
-#### 1. Copier les fichiers dans systemd
+#### 1. Copier les fichiers dans systemd (mode utilisateur)
+
+**Note**: Le script `deploy-podman-systemd.sh` fait cela automatiquement. Si vous préférez le faire manuellement :
 
 ```bash
-# Créer le répertoire si nécessaire
-sudo mkdir -p /etc/containers/systemd
+# Créer le répertoire systemd utilisateur
+sudo -u ai-user mkdir -p ~ai-user/.config/containers/systemd
 
 # Copier tous les fichiers de configuration
-sudo cp *.network *.volume *.container /etc/containers/systemd/
+sudo -u ai-user cp *.network *.volume *.container ~ai-user/.config/containers/systemd/
 ```
+
+**Différence importante**: En mode utilisateur, les fichiers vont dans `~/.config/containers/systemd/` et non `/etc/containers/systemd/`.
 
 ### 2. Ajuster les chemins des volumes
 
-**IMPORTANT** : Les fichiers `.container` utilisent des chemins relatifs pour les volumes montés. 
-Vous devez modifier les chemins dans chaque fichier `.container` pour pointer vers le répertoire 
-absolu de votre projet.
+**IMPORTANT** : Le script `deploy-podman-systemd.sh` remplace automatiquement `%E` par le chemin absolu du projet. Si vous faites l'installation manuelle, vous devez modifier les chemins dans chaque fichier `.container`.
 
-Par exemple, dans `vocalyx-api-01.container`, remplacez :
-```
-Volume=%E/shared/uploads:/app/shared_uploads:Z
-```
-
-Par le chemin absolu de votre projet :
-```
-Volume=/home/user/code/vocalyx-all/shared/uploads:/app/shared_uploads:Z
-```
-
-Ou utilisez une variable d'environnement si vous préférez.
-
-### 3. Recharger systemd
+### 3. Recharger systemd (mode utilisateur)
 
 ```bash
-sudo systemctl daemon-reload
+# Recharger systemd pour l'utilisateur ai-user
+sudo -u ai-user systemctl --user daemon-reload
 ```
+
+**Note**: Utilisez toujours `systemctl --user` et non `systemctl` seul en mode utilisateur.
 
 ## Démarrage des services
 
-### Ordre de démarrage recommandé
+### Ordre de démarrage recommandé (mode utilisateur)
+
+**Note**: Utilisez `systemctl --user` et exécutez en tant que l'utilisateur `ai-user` :
 
 1. **Infrastructure de base** :
 ```bash
-sudo systemctl start vocalyx-network.service
-sudo systemctl start vocalyx-postgres-data.service
-sudo systemctl start vocalyx-redis-data.service
+sudo -u ai-user systemctl --user start vocalyx-network.service
+sudo -u ai-user systemctl --user start vocalyx-postgres-data.service
+sudo -u ai-user systemctl --user start vocalyx-redis-data.service
 ```
 
 2. **Services de base** :
 ```bash
-sudo systemctl start vocalyx-postgres.service
-sudo systemctl start vocalyx-redis.service
+sudo -u ai-user systemctl --user start vocalyx-postgres.service
+sudo -u ai-user systemctl --user start vocalyx-redis.service
 ```
 
 3. **Services API** :
 ```bash
-sudo systemctl start vocalyx-api-01.service
-sudo systemctl start vocalyx-api-02.service
+sudo -u ai-user systemctl --user start vocalyx-api-01.service
+sudo -u ai-user systemctl --user start vocalyx-api-02.service
 ```
 
 4. **HAProxy** :
 ```bash
-sudo systemctl start vocalyx-haproxy.service
+sudo -u ai-user systemctl --user start vocalyx-haproxy.service
 ```
 
 5. **Frontend** :
 ```bash
-sudo systemctl start vocalyx-frontend.service
+sudo -u ai-user systemctl --user start vocalyx-frontend.service
 ```
 
 6. **Workers** :
 ```bash
-sudo systemctl start vocalyx-transcribe-01.service
-sudo systemctl start vocalyx-transcribe-02.service
-sudo systemctl start vocalyx-transcribe-03.service
-sudo systemctl start vocalyx-enrichment-01.service
-sudo systemctl start vocalyx-enrichment-02.service
+sudo -u ai-user systemctl --user start vocalyx-transcribe-01.service
+sudo -u ai-user systemctl --user start vocalyx-transcribe-02.service
+sudo -u ai-user systemctl --user start vocalyx-transcribe-03.service
+sudo -u ai-user systemctl --user start vocalyx-enrichment-01.service
+sudo -u ai-user systemctl --user start vocalyx-enrichment-02.service
 ```
 
 7. **Monitoring (optionnel)** :
 ```bash
-sudo systemctl start vocalyx-flower.service
+sudo -u ai-user systemctl --user start vocalyx-flower.service
 ```
 
-### Démarrage automatique au boot
+### Démarrage automatique au boot (mode utilisateur)
 
-Pour activer le démarrage automatique de tous les services :
+Pour activer le démarrage automatique de tous les services pour l'utilisateur `ai-user` :
 
 ```bash
-sudo systemctl enable vocalyx-network.service
-sudo systemctl enable vocalyx-postgres-data.service
-sudo systemctl enable vocalyx-redis-data.service
-sudo systemctl enable vocalyx-postgres.service
-sudo systemctl enable vocalyx-redis.service
-sudo systemctl enable vocalyx-api-01.service
-sudo systemctl enable vocalyx-api-02.service
-sudo systemctl enable vocalyx-haproxy.service
-sudo systemctl enable vocalyx-frontend.service
-sudo systemctl enable vocalyx-transcribe-01.service
-sudo systemctl enable vocalyx-transcribe-02.service
-sudo systemctl enable vocalyx-transcribe-03.service
-sudo systemctl enable vocalyx-enrichment-01.service
-sudo systemctl enable vocalyx-enrichment-02.service
-sudo systemctl enable vocalyx-flower.service
+# Important: Activer linger pour que les services démarrent au boot
+sudo loginctl enable-linger ai-user
+
+# Activer les services
+sudo -u ai-user systemctl --user enable vocalyx-network.service
+sudo -u ai-user systemctl --user enable vocalyx-postgres-data.service
+sudo -u ai-user systemctl --user enable vocalyx-redis-data.service
+sudo -u ai-user systemctl --user enable vocalyx-postgres.service
+sudo -u ai-user systemctl --user enable vocalyx-redis.service
+sudo -u ai-user systemctl --user enable vocalyx-api-01.service
+sudo -u ai-user systemctl --user enable vocalyx-api-02.service
+sudo -u ai-user systemctl --user enable vocalyx-haproxy.service
+sudo -u ai-user systemctl --user enable vocalyx-frontend.service
+sudo -u ai-user systemctl --user enable vocalyx-transcribe-01.service
+sudo -u ai-user systemctl --user enable vocalyx-transcribe-02.service
+sudo -u ai-user systemctl --user enable vocalyx-transcribe-03.service
+sudo -u ai-user systemctl --user enable vocalyx-enrichment-01.service
+sudo -u ai-user systemctl --user enable vocalyx-enrichment-02.service
+sudo -u ai-user systemctl --user enable vocalyx-flower.service
 ```
 
 ## Gestion des services
 
-### Vérifier le statut
+### Vérifier le statut (mode utilisateur)
 
 ```bash
 # Tous les services
-sudo systemctl status 'vocalyx-*'
+sudo -u ai-user systemctl --user status 'vocalyx-*'
 
 # Un service spécifique
-sudo systemctl status vocalyx-api-01.service
+sudo -u ai-user systemctl --user status vocalyx-api-01.service
 ```
 
-### Voir les logs
+### Voir les logs (mode utilisateur)
 
 ```bash
-# Logs systemd
-sudo journalctl -u vocalyx-api-01.service -f
+# Logs systemd (mode utilisateur)
+sudo -u ai-user journalctl --user -u vocalyx-api-01.service -f
 
-# Logs du conteneur
-sudo podman logs vocalyx-api-01
+# Logs du conteneur (Podman rootless)
+sudo -u ai-user podman logs vocalyx-api-01
 ```
 
-### Arrêter un service
+### Arrêter un service (mode utilisateur)
 
 ```bash
-sudo systemctl stop vocalyx-api-01.service
+sudo -u ai-user systemctl --user stop vocalyx-api-01.service
 ```
 
-### Redémarrer un service
+### Redémarrer un service (mode utilisateur)
 
 ```bash
-sudo systemctl restart vocalyx-api-01.service
+sudo -u ai-user systemctl --user restart vocalyx-api-01.service
 ```
 
 ## Workflow recommandé
 
+### Configuration initiale
+
+```bash
+# 1. Créer et configurer l'utilisateur ai-user
+sudo useradd -m -s /bin/bash ai-user
+sudo loginctl enable-linger ai-user
+
+# 2. Vérifier que Podman rootless fonctionne
+sudo -u ai-user podman info
+```
+
 ### Premier déploiement
 
 ```bash
-# 1. Construire toutes les images
-./build-images.sh
+# 1. Construire toutes les images (pour ai-user)
+sudo -u ai-user ./build-images.sh
 
 # 2. Déployer (les images sont déjà construites, donc skip-build)
 ./deploy-podman-systemd.sh --skip-build
@@ -233,38 +261,52 @@ sudo systemctl restart vocalyx-api-01.service
 ### Déploiement complet (tout en un)
 
 ```bash
-# Le script de déploiement construira les images si nécessaire
+# Le script de déploiement construira les images si nécessaire (pour ai-user)
 ./deploy-podman-systemd.sh
 ```
 
 ### Mise à jour après modification du code
 
 ```bash
-# 1. Reconstruire les images modifiées
-./build-images.sh --no-cache
+# 1. Reconstruire les images modifiées (pour ai-user)
+sudo -u ai-user ./build-images.sh --no-cache
 
-# 2. Redémarrer les services affectés
-sudo systemctl restart vocalyx-api-01.service
-sudo systemctl restart vocalyx-api-02.service
+# 2. Redémarrer les services affectés (mode utilisateur)
+sudo -u ai-user systemctl --user restart vocalyx-api-01.service
+sudo -u ai-user systemctl --user restart vocalyx-api-02.service
 # etc.
+```
+
+### Utiliser un autre utilisateur
+
+Si vous voulez utiliser un autre utilisateur que `ai-user` :
+
+```bash
+./deploy-podman-systemd.sh --user mon-utilisateur
 ```
 
 ## Notes importantes
 
-1. **Chemins des volumes** : N'oubliez pas de modifier les chemins absolus dans les fichiers `.container` 
-   pour correspondre à votre environnement.
+1. **Mode utilisateur** : Ce déploiement utilise systemd en mode utilisateur (`--user`) avec l'utilisateur `ai-user`. 
+   Tous les conteneurs s'exécutent en mode rootless Podman, ce qui est plus sécurisé.
 
-2. **Sécurité** : Les clés secrètes dans les fichiers `.container` sont en clair. En production, 
+2. **Chemins des volumes** : Le script `deploy-podman-systemd.sh` remplace automatiquement `%E` par le chemin absolu 
+   du projet. Si vous faites l'installation manuelle, modifiez les chemins dans les fichiers `.container`.
+
+3. **Sécurité** : Les clés secrètes dans les fichiers `.container` sont en clair. En production, 
    utilisez des secrets systemd ou des variables d'environnement sécurisées.
 
-3. **Ressources** : Les limites de mémoire et CPU sont définies dans chaque fichier `.container`. 
+4. **Ressources** : Les limites de mémoire et CPU sont définies dans chaque fichier `.container`. 
    Ajustez-les selon votre infrastructure.
 
-4. **Dépendances** : Les fichiers `.container` incluent des dépendances systemd (`After`, `Requires`, `Wants`) 
+5. **Dépendances** : Les fichiers `.container` incluent des dépendances systemd (`After`, `Requires`, `Wants`) 
    pour gérer l'ordre de démarrage automatiquement.
 
-5. **Healthchecks** : Les healthchecks sont configurés pour chaque service. systemd utilisera ces 
+6. **Healthchecks** : Les healthchecks sont configurés pour chaque service. systemd utilisera ces 
    informations pour gérer les redémarrages.
+
+7. **Linger** : Assurez-vous que `loginctl enable-linger ai-user` est exécuté pour que les services 
+   persistent après la déconnexion de l'utilisateur.
 
 ## Dépannage
 
