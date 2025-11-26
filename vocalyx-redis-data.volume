@@ -1,0 +1,14 @@
+# ============================================================================
+# VOCALYX - Volume Redis pour Podman/systemd
+# ============================================================================
+# Fichier quadlet pour définir le volume redis_data
+# 
+# Installation:
+#   sudo cp vocalyx-redis-data.volume /etc/containers/systemd/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start vocalyx-redis-data.service
+# ============================================================================
+
+[Volume]
+Label=com.vocalyx.volume=redis_data
+

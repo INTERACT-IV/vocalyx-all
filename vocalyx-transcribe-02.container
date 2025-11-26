@@ -1,0 +1,50 @@
+# ============================================================================
+# VOCALYX - Transcription Worker #2 pour Podman/systemd
+# ============================================================================
+# Fichier quadlet pour le conteneur vocalyx-transcribe-02
+# 
+# Note: L'image doit être construite au préalable:
+#   podman build -t vocalyx-transcribe:latest -f ./vocalyx-transcribe/Containerfile ./vocalyx-transcribe
+# 
+# Installation:
+#   sudo cp vocalyx-transcribe-02.container /etc/containers/systemd/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start vocalyx-transcribe-02.service
+# ============================================================================
+
+[Unit]
+Description=Vocalyx Transcription Worker #2
+After=vocalyx-network.service vocalyx-redis.service vocalyx-haproxy.service
+Requires=vocalyx-network.service vocalyx-redis.service
+Wants=vocalyx-haproxy.service
+
+[Container]
+Image=vocalyx-transcribe:latest
+ContainerName=vocalyx-transcribe-02
+RestartPolicy=unless-stopped
+Network=vocalyx-network
+Volume=%E/shared/uploads:/app/shared_uploads:Z
+Volume=%E/shared/models:/app/models:Z
+Volume=%E/shared/logs:/app/logs:Z
+CPUs=4
+Memory=8G
+Environment=INSTANCE_NAME=worker-02
+Environment=VOCALYX_API_URL=http://haproxy:8000
+Environment=CELERY_BROKER_URL=redis://redis:6379/0
+Environment=CELERY_RESULT_BACKEND=redis://redis:6379/0
+Environment=WHISPER_MODEL=./models/openai-whisper-small
+Environment=WHISPER_DEVICE=cpu
+Environment=WHISPER_COMPUTE_TYPE=int8
+Environment=WHISPER_LANGUAGE=fr
+Environment=MAX_WORKERS=2
+Environment=VAD_ENABLED=true
+Environment=UPLOAD_DIR=/app/shared_uploads
+Environment=INTERNAL_API_KEY=secret_key_pour_comms_internes_123456
+Environment=LOG_LEVEL=INFO
+Environment=LOG_COLORED=true
+Environment=LOG_FILE_PATH=/app/logs/vocalyx-transcribe-02.log
+Exec=celery -A worker.celery_app worker --loglevel=info --concurrency=2 --hostname=worker-02@%%h --without-gossip --without-mingle -Q transcription
+
+[Service]
+Restart=on-failure
+

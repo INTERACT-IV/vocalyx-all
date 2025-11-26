@@ -1,0 +1,35 @@
+# ============================================================================
+# VOCALYX - PostgreSQL Container pour Podman/systemd
+# ============================================================================
+# Fichier quadlet pour le conteneur PostgreSQL
+# 
+# Installation:
+#   sudo cp vocalyx-postgres.container /etc/containers/systemd/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start vocalyx-postgres.service
+# ============================================================================
+
+[Unit]
+Description=PostgreSQL Database for Vocalyx
+After=vocalyx-network.service vocalyx-postgres-data.service
+Requires=vocalyx-network.service vocalyx-postgres-data.service
+
+[Container]
+Image=postgres:15-alpine
+ContainerName=vocalyx-postgres
+RestartPolicy=unless-stopped
+Network=vocalyx-network
+Volume=vocalyx-postgres-data:/var/lib/postgresql/data:Z
+Environment=POSTGRES_DB=vocalyx_db
+Environment=POSTGRES_USER=vocalyx
+Environment=POSTGRES_PASSWORD=vocalyx_secret
+PublishPort=5432:5432
+Memory=1G
+HealthCmd=pg_isready -U vocalyx -d vocalyx_db
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=5
+
+[Service]
+Restart=on-failure
+

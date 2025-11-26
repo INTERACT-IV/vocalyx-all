@@ -1,0 +1,33 @@
+# ============================================================================
+# VOCALYX - Redis Container pour Podman/systemd
+# ============================================================================
+# Fichier quadlet pour le conteneur Redis
+# 
+# Installation:
+#   sudo cp vocalyx-redis.container /etc/containers/systemd/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start vocalyx-redis.service
+# ============================================================================
+
+[Unit]
+Description=Redis Broker and Cache for Vocalyx
+After=vocalyx-network.service vocalyx-redis-data.service
+Requires=vocalyx-network.service vocalyx-redis-data.service
+
+[Container]
+Image=redis:7-alpine
+ContainerName=vocalyx-redis
+RestartPolicy=unless-stopped
+Network=vocalyx-network
+Volume=vocalyx-redis-data:/data:Z
+PublishPort=6379:6379
+Memory=1G
+Exec=redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+HealthCmd=redis-cli ping
+HealthInterval=10s
+HealthTimeout=5s
+HealthRetries=5
+
+[Service]
+Restart=on-failure
+

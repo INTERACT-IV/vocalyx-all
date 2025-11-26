@@ -1,0 +1,35 @@
+# ============================================================================
+# VOCALYX - HAProxy Container pour Podman/systemd
+# ============================================================================
+# Fichier quadlet pour le conteneur HAProxy
+# 
+# Installation:
+#   sudo cp vocalyx-haproxy.container /etc/containers/systemd/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start vocalyx-haproxy.service
+# ============================================================================
+
+[Unit]
+Description=HAProxy Load Balancer for Vocalyx
+After=vocalyx-network.service vocalyx-api-01.service vocalyx-api-02.service
+Requires=vocalyx-network.service
+Wants=vocalyx-api-01.service vocalyx-api-02.service
+
+[Container]
+Image=haproxy:2.8-alpine
+ContainerName=vocalyx-haproxy
+RestartPolicy=unless-stopped
+Network=vocalyx-network
+Volume=%E/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+PublishPort=8000:8000
+PublishPort=8404:8404
+Memory=256M
+HealthCmd=pidof haproxy || exit 1
+HealthInterval=30s
+HealthTimeout=10s
+HealthRetries=3
+HealthStartPeriod=10s
+
+[Service]
+Restart=on-failure
+

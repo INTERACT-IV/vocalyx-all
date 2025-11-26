@@ -1,0 +1,14 @@
+# ============================================================================
+# VOCALYX - Volume PostgreSQL pour Podman/systemd
+# ============================================================================
+# Fichier quadlet pour définir le volume postgres_data
+# 
+# Installation:
+#   sudo cp vocalyx-postgres-data.volume /etc/containers/systemd/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start vocalyx-postgres-data.service
+# ============================================================================
+
+[Volume]
+Label=com.vocalyx.volume=postgres_data
+
