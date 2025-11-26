@@ -79,3 +79,5 @@ build/
 
 # MyPy
 .mypy_cache/
+
+.env.registry
