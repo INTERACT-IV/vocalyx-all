@@ -16,7 +16,33 @@ Ce répertoire contient les fichiers de configuration quadlet pour déployer Voc
 
 ## Construction des images
 
-Avant de déployer les services, construisez les images nécessaires :
+### Méthode recommandée : Script automatique
+
+Utilisez le script `build-images.sh` pour construire toutes les images :
+
+```bash
+# Construction standard
+./build-images.sh
+
+# Construction sans cache (reconstruction complète)
+./build-images.sh --no-cache
+
+# Construction avec un tag personnalisé
+./build-images.sh --tag v1.0.0
+
+# Construction et push vers un registry
+./build-images.sh --push --registry registry.example.com
+```
+
+Le script affiche :
+- La progression de chaque construction
+- Le temps de construction
+- La taille des images
+- Un résumé final
+
+### Méthode manuelle
+
+Si vous préférez construire manuellement :
 
 ```bash
 # API
@@ -32,9 +58,30 @@ podman build -t vocalyx-transcribe:latest -f ./vocalyx-transcribe/Containerfile 
 podman build -t vocalyx-enrichment:latest -f ./vocalyx-enrichment/Containerfile ./vocalyx-enrichment
 ```
 
-## Installation
+## Déploiement
 
-### 1. Copier les fichiers dans systemd
+### Méthode recommandée : Script automatique
+
+Le script `deploy-podman-systemd.sh` automatise tout le processus :
+
+```bash
+# Déploiement complet (construit les images si nécessaire)
+./deploy-podman-systemd.sh
+
+# Déploiement sans construire les images (suppose qu'elles existent)
+./deploy-podman-systemd.sh --skip-build
+```
+
+Le script :
+1. Vérifie/construit les images (sauf si `--skip-build`)
+2. Prépare les fichiers de configuration
+3. Installe les fichiers systemd
+4. Recharge systemd
+5. Démarre tous les services dans le bon ordre
+
+### Méthode manuelle
+
+#### 1. Copier les fichiers dans systemd
 
 ```bash
 # Créer le répertoire si nécessaire
@@ -171,50 +218,35 @@ sudo systemctl stop vocalyx-api-01.service
 sudo systemctl restart vocalyx-api-01.service
 ```
 
-## Script de déploiement automatique
+## Workflow recommandé
 
-Vous pouvez créer un script pour automatiser le déploiement :
+### Premier déploiement
 
 ```bash
-#!/bin/bash
-# deploy-vocalyx.sh
+# 1. Construire toutes les images
+./build-images.sh
 
-# Construire les images
-echo "Construction des images..."
-podman build -t vocalyx-api:latest -f ./vocalyx-api/Containerfile ./vocalyx-api
-podman build -t vocalyx-frontend:latest -f ./vocalyx-frontend/Containerfile ./vocalyx-frontend
-podman build -t vocalyx-transcribe:latest -f ./vocalyx-transcribe/Containerfile ./vocalyx-transcribe
-podman build -t vocalyx-enrichment:latest -f ./vocalyx-enrichment/Containerfile ./vocalyx-enrichment
+# 2. Déployer (les images sont déjà construites, donc skip-build)
+./deploy-podman-systemd.sh --skip-build
+```
 
-# Copier les fichiers
-echo "Installation des fichiers systemd..."
-sudo cp *.network *.volume *.container /etc/containers/systemd/
+### Déploiement complet (tout en un)
 
-# Recharger systemd
-echo "Rechargement de systemd..."
-sudo systemctl daemon-reload
+```bash
+# Le script de déploiement construira les images si nécessaire
+./deploy-podman-systemd.sh
+```
 
-# Démarrer les services dans l'ordre
-echo "Démarrage des services..."
-sudo systemctl start vocalyx-network.service
-sudo systemctl start vocalyx-postgres-data.service
-sudo systemctl start vocalyx-redis-data.service
-sudo systemctl start vocalyx-postgres.service
-sudo systemctl start vocalyx-redis.service
-sleep 5
-sudo systemctl start vocalyx-api-01.service
-sudo systemctl start vocalyx-api-02.service
-sleep 10
-sudo systemctl start vocalyx-haproxy.service
-sudo systemctl start vocalyx-frontend.service
-sudo systemctl start vocalyx-transcribe-01.service
-sudo systemctl start vocalyx-transcribe-02.service
-sudo systemctl start vocalyx-transcribe-03.service
-sudo systemctl start vocalyx-enrichment-01.service
-sudo systemctl start vocalyx-enrichment-02.service
-sudo systemctl start vocalyx-flower.service
+### Mise à jour après modification du code
 
-echo "Déploiement terminé !"
+```bash
+# 1. Reconstruire les images modifiées
+./build-images.sh --no-cache
+
+# 2. Redémarrer les services affectés
+sudo systemctl restart vocalyx-api-01.service
+sudo systemctl restart vocalyx-api-02.service
+# etc.
 ```
 
 ## Notes importantes

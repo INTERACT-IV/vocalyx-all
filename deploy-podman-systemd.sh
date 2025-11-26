@@ -2,6 +2,13 @@
 # ============================================================================
 # Script de déploiement Vocalyx avec Podman/systemd
 # ============================================================================
+# Usage:
+#   ./deploy-podman-systemd.sh [options]
+#
+# Options:
+#   --skip-build  : Sauter la construction des images (suppose qu'elles existent)
+#   -h, --help    : Afficher cette aide
+# ============================================================================
 
 set -e
 
@@ -10,6 +17,35 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+# Variables
+SKIP_BUILD=false
+
+# Parser les arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --skip-build)
+            SKIP_BUILD=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 [options]"
+            echo ""
+            echo "Options:"
+            echo "  --skip-build    Sauter la construction des images"
+            echo "  -h, --help      Afficher cette aide"
+            echo ""
+            echo "Note: Pour construire les images séparément, utilisez:"
+            echo "  ./build-images.sh"
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Option inconnue: $1${NC}"
+            echo "Utilisez --help pour voir les options disponibles"
+            exit 1
+            ;;
+    esac
+done
 
 # Obtenir le répertoire du projet (où se trouve ce script)
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,31 +68,85 @@ else
     SUDO=""
 fi
 
-# Étape 1: Construction des images
-echo -e "${GREEN}[1/5] Construction des images...${NC}"
-echo "  - API..."
-podman build -t vocalyx-api:latest -f "$PROJECT_DIR/vocalyx-api/Containerfile" "$PROJECT_DIR/vocalyx-api" || {
-    echo -e "${RED}Erreur lors de la construction de l'image API${NC}"
-    exit 1
-}
+# Étape 1: Vérification/Construction des images
+if [ "$SKIP_BUILD" = true ]; then
+    echo -e "${GREEN}[1/5] Vérification des images (construction ignorée)...${NC}"
+    echo "  Vérification que les images existent..."
+    
+    MISSING_IMAGES=()
+    for img in "vocalyx-api:latest" "vocalyx-frontend:latest" "vocalyx-transcribe:latest" "vocalyx-enrichment:latest"; do
+        if ! podman image exists "$img" 2>/dev/null; then
+            MISSING_IMAGES+=("$img")
+        fi
+    done
+    
+    if [ ${#MISSING_IMAGES[@]} -gt 0 ]; then
+        echo -e "${RED}  ✗ Images manquantes:${NC}"
+        for img in "${MISSING_IMAGES[@]}"; do
+            echo -e "${RED}    - $img${NC}"
+        done
+        echo ""
+        echo -e "${YELLOW}  Construisez les images avec: ./build-images.sh${NC}"
+        exit 1
+    else
+        echo -e "${GREEN}  ✓ Toutes les images sont présentes${NC}"
+    fi
+else
+    echo -e "${GREEN}[1/5] Vérification/Construction des images...${NC}"
+    
+    # Vérifier si le script de build existe
+    BUILD_SCRIPT="$PROJECT_DIR/build-images.sh"
+    if [ -f "$BUILD_SCRIPT" ]; then
+        echo "  Script de build détecté: $BUILD_SCRIPT"
+        echo "  Vérification des images existantes..."
+        
+        # Vérifier si toutes les images existent
+        IMAGES_EXIST=true
+        for img in "vocalyx-api:latest" "vocalyx-frontend:latest" "vocalyx-transcribe:latest" "vocalyx-enrichment:latest"; do
+            if ! podman image exists "$img" 2>/dev/null; then
+                IMAGES_EXIST=false
+                break
+            fi
+        done
+        
+        if [ "$IMAGES_EXIST" = false ]; then
+            echo -e "${YELLOW}  Certaines images manquent. Construction en cours...${NC}"
+            echo ""
+            if ! bash "$BUILD_SCRIPT"; then
+                echo -e "${RED}Erreur lors de la construction des images${NC}"
+                exit 1
+            fi
+        else
+            echo -e "${GREEN}  ✓ Toutes les images sont déjà construites${NC}"
+            echo "  Pour reconstruire, exécutez: ./build-images.sh"
+        fi
+    else
+        echo -e "${YELLOW}  Script de build non trouvé. Construction directe...${NC}"
+        echo "  - API..."
+        podman build -t vocalyx-api:latest -f "$PROJECT_DIR/vocalyx-api/Containerfile" "$PROJECT_DIR/vocalyx-api" || {
+            echo -e "${RED}Erreur lors de la construction de l'image API${NC}"
+            exit 1
+        }
 
-echo "  - Frontend..."
-podman build -t vocalyx-frontend:latest -f "$PROJECT_DIR/vocalyx-frontend/Containerfile" "$PROJECT_DIR/vocalyx-frontend" || {
-    echo -e "${RED}Erreur lors de la construction de l'image Frontend${NC}"
-    exit 1
-}
+        echo "  - Frontend..."
+        podman build -t vocalyx-frontend:latest -f "$PROJECT_DIR/vocalyx-frontend/Containerfile" "$PROJECT_DIR/vocalyx-frontend" || {
+            echo -e "${RED}Erreur lors de la construction de l'image Frontend${NC}"
+            exit 1
+        }
 
-echo "  - Transcription Worker..."
-podman build -t vocalyx-transcribe:latest -f "$PROJECT_DIR/vocalyx-transcribe/Containerfile" "$PROJECT_DIR/vocalyx-transcribe" || {
-    echo -e "${RED}Erreur lors de la construction de l'image Transcription${NC}"
-    exit 1
-}
+        echo "  - Transcription Worker..."
+        podman build -t vocalyx-transcribe:latest -f "$PROJECT_DIR/vocalyx-transcribe/Containerfile" "$PROJECT_DIR/vocalyx-transcribe" || {
+            echo -e "${RED}Erreur lors de la construction de l'image Transcription${NC}"
+            exit 1
+        }
 
-echo "  - Enrichment Worker..."
-podman build -t vocalyx-enrichment:latest -f "$PROJECT_DIR/vocalyx-enrichment/Containerfile" "$PROJECT_DIR/vocalyx-enrichment" || {
-    echo -e "${RED}Erreur lors de la construction de l'image Enrichment${NC}"
-    exit 1
-}
+        echo "  - Enrichment Worker..."
+        podman build -t vocalyx-enrichment:latest -f "$PROJECT_DIR/vocalyx-enrichment/Containerfile" "$PROJECT_DIR/vocalyx-enrichment" || {
+            echo -e "${RED}Erreur lors de la construction de l'image Enrichment${NC}"
+            exit 1
+        }
+    fi
+fi
 
 # Étape 2: Créer un répertoire temporaire pour les fichiers modifiés
 TMP_DIR=$(mktemp -d)
