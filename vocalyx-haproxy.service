@@ -1,0 +1,53 @@
+# ============================================================================
+# VOCALYX - HAProxy Service pour systemd
+# ============================================================================
+# Service systemd pour gérer le conteneur HAProxy avec Podman
+# 
+# Note: Modifiez PROJECT_DIR dans ExecStart pour pointer vers votre projet
+# 
+# Installation:
+#   sudo cp vocalyx-haproxy.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable vocalyx-haproxy.service
+#   sudo systemctl start vocalyx-haproxy.service
+# ============================================================================
+
+[Unit]
+Description=HAProxy Load Balancer for Vocalyx
+Documentation=https://www.haproxy.org/
+After=network-online.target vocalyx-api-01.service vocalyx-api-02.service
+Wants=network-online.target vocalyx-api-01.service vocalyx-api-02.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+TimeoutStartSec=0
+Restart=always
+RestartSec=10
+
+# Modifier PROJECT_DIR pour pointer vers votre répertoire de projet
+Environment="PROJECT_DIR=/home/shinohk/code/vocalyx-all"
+
+# Créer le conteneur s'il n'existe pas, sinon le démarrer
+ExecStartPre=-/usr/bin/podman rm -f vocalyx-haproxy
+ExecStart=/usr/bin/podman run \
+    --name vocalyx-haproxy \
+    --network vocalyx-network \
+    --volume ${PROJECT_DIR}/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro \
+    --publish 8000:8000 \
+    --publish 8404:8404 \
+    --memory 256m \
+    --health-cmd "pidof haproxy || exit 1" \
+    --health-interval 30s \
+    --health-timeout 10s \
+    --health-retries 3 \
+    --health-start-period 10s \
+    --rm \
+    haproxy:2.8-alpine
+
+ExecStop=/usr/bin/podman stop -t 10 vocalyx-haproxy
+ExecStopPost=-/usr/bin/podman rm -f vocalyx-haproxy
+
+[Install]
+WantedBy=multi-user.target
+

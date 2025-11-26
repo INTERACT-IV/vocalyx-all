@@ -1,0 +1,63 @@
+# ============================================================================
+# VOCALYX - API Service #1 pour systemd
+# ============================================================================
+# Service systemd pour gérer le conteneur vocalyx-api-01 avec Podman
+# 
+# Note: Modifiez PROJECT_DIR dans ExecStart pour pointer vers votre projet
+# 
+# Installation:
+#   sudo cp vocalyx-api-01.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable vocalyx-api-01.service
+#   sudo systemctl start vocalyx-api-01.service
+# ============================================================================
+
+[Unit]
+Description=Vocalyx API Service #1
+After=network-online.target vocalyx-postgres.service vocalyx-redis.service
+Wants=network-online.target
+Requires=vocalyx-postgres.service vocalyx-redis.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+TimeoutStartSec=0
+Restart=always
+RestartSec=10
+
+# Modifier PROJECT_DIR pour pointer vers votre répertoire de projet
+Environment="PROJECT_DIR=/home/shinohk/code/vocalyx-all"
+
+# Créer le conteneur s'il n'existe pas, sinon le démarrer
+ExecStartPre=-/usr/bin/podman rm -f vocalyx-api-01
+ExecStart=/usr/bin/podman run \
+    --name vocalyx-api-01 \
+    --network vocalyx-network \
+    --volume ${PROJECT_DIR}/shared/uploads:/app/shared_uploads:Z \
+    --volume ${PROJECT_DIR}/shared/logs:/app/logs:Z \
+    --env DATABASE_URL=postgresql://vocalyx:vocalyx_secret@postgres:5432/vocalyx_db \
+    --env REDIS_URL=redis://redis:6379/0 \
+    --env CELERY_BROKER_URL=redis://redis:6379/0 \
+    --env CELERY_RESULT_BACKEND=redis://redis:6379/0 \
+    --env INTERNAL_API_KEY=secret_key_pour_comms_internes_123456 \
+    --env ADMIN_PROJECT_NAME=ISICOMTECH \
+    --env CORS_ORIGINS=http://localhost:8080,http://vocalyx-frontend:8080,http://localhost:8000,http://haproxy:8000 \
+    --env UPLOAD_DIR=/app/shared_uploads \
+    --env LOG_LEVEL=INFO \
+    --env LOG_COLORED=false \
+    --env LOG_FILE_PATH=/app/logs/vocalyx-api-01.log \
+    --memory 1g \
+    --health-cmd "curl -f http://localhost:8000/health" \
+    --health-interval 30s \
+    --health-timeout 10s \
+    --health-retries 3 \
+    --health-start-period 40s \
+    --rm \
+    vocalyx-api:latest
+
+ExecStop=/usr/bin/podman stop -t 10 vocalyx-api-01
+ExecStopPost=-/usr/bin/podman rm -f vocalyx-api-01
+
+[Install]
+WantedBy=multi-user.target
+

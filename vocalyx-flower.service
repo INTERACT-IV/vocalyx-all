@@ -1,0 +1,46 @@
+# ============================================================================
+# VOCALYX - Flower Monitoring Service pour systemd
+# ============================================================================
+# Service systemd pour gérer le conteneur Flower (monitoring Celery) avec Podman
+# 
+# Installation:
+#   sudo cp vocalyx-flower.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable vocalyx-flower.service
+#   sudo systemctl start vocalyx-flower.service
+# ============================================================================
+
+[Unit]
+Description=Flower Celery Monitoring for Vocalyx
+Documentation=https://flower.readthedocs.io/
+After=network-online.target vocalyx-redis.service
+Wants=network-online.target
+Requires=vocalyx-redis.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+TimeoutStartSec=0
+Restart=always
+RestartSec=10
+
+# Créer le conteneur s'il n'existe pas, sinon le démarrer
+ExecStartPre=-/usr/bin/podman rm -f vocalyx-flower
+ExecStart=/usr/bin/podman run \
+    --name vocalyx-flower \
+    --network vocalyx-network \
+    --publish 5555:5555 \
+    --env CELERY_BROKER_URL=redis://redis:6379/0 \
+    --env CELERY_RESULT_BACKEND=redis://redis:6379/0 \
+    --env FLOWER_PORT=5555 \
+    --memory 256m \
+    --rm \
+    mher/flower:2.0 \
+    celery --broker=redis://redis:6379/0 flower --port=5555
+
+ExecStop=/usr/bin/podman stop -t 10 vocalyx-flower
+ExecStopPost=-/usr/bin/podman rm -f vocalyx-flower
+
+[Install]
+WantedBy=multi-user.target
+
