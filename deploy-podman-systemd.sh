@@ -113,6 +113,28 @@ if [ "$SKIP_BUILD" = true ]; then
     echo -e "${GREEN}[1/5] Vérification des images (construction ignorée)...${NC}"
     echo "  Vérification que les images existent..."
     
+    # Vérifier les images officielles
+    OFFICIAL_IMAGES=("postgres:15-alpine" "redis:7-alpine" "haproxy:2.8-alpine" "mher/flower:2.0")
+    MISSING_OFFICIAL=()
+    for img in "${OFFICIAL_IMAGES[@]}"; do
+        if ! sudo -u "$TARGET_USER" podman image exists "$img" 2>/dev/null; then
+            MISSING_OFFICIAL+=("$img")
+        fi
+    done
+    
+    if [ ${#MISSING_OFFICIAL[@]} -gt 0 ]; then
+        echo -e "${YELLOW}  ⚠ Images officielles manquantes, téléchargement en cours...${NC}"
+        for img in "${MISSING_OFFICIAL[@]}"; do
+            echo "    - Téléchargement de $img..."
+            sudo -u "$TARGET_USER" podman pull "$img" || {
+                echo -e "${RED}      ✗ Erreur lors du téléchargement de $img${NC}"
+            }
+        done
+    else
+        echo -e "${GREEN}  ✓ Toutes les images officielles sont présentes${NC}"
+    fi
+    
+    # Vérifier les images Vocalyx
     MISSING_IMAGES=()
     for img in "vocalyx-api:latest" "vocalyx-frontend:latest" "vocalyx-transcribe:latest" "vocalyx-enrichment:latest"; do
         if ! sudo -u "$TARGET_USER" podman image exists "$img" 2>/dev/null; then
@@ -121,7 +143,7 @@ if [ "$SKIP_BUILD" = true ]; then
     done
     
     if [ ${#MISSING_IMAGES[@]} -gt 0 ]; then
-        echo -e "${RED}  ✗ Images manquantes:${NC}"
+        echo -e "${RED}  ✗ Images Vocalyx manquantes:${NC}"
         for img in "${MISSING_IMAGES[@]}"; do
             echo -e "${RED}    - $img${NC}"
         done
@@ -129,7 +151,7 @@ if [ "$SKIP_BUILD" = true ]; then
         echo -e "${YELLOW}  Construisez les images avec: ./build-images.sh${NC}"
         exit 1
     else
-        echo -e "${GREEN}  ✓ Toutes les images sont présentes${NC}"
+        echo -e "${GREEN}  ✓ Toutes les images Vocalyx sont présentes${NC}"
     fi
 else
     echo -e "${GREEN}[1/5] Vérification/Construction des images...${NC}"
@@ -141,6 +163,17 @@ else
         echo "  Vérification des images existantes..."
         
         # Vérifier si toutes les images existent (pour l'utilisateur cible)
+        # D'abord les images officielles
+        OFFICIAL_IMAGES=("postgres:15-alpine" "redis:7-alpine" "haproxy:2.8-alpine" "mher/flower:2.0")
+        OFFICIAL_MISSING=false
+        for img in "${OFFICIAL_IMAGES[@]}"; do
+            if ! sudo -u "$TARGET_USER" podman image exists "$img" 2>/dev/null; then
+                OFFICIAL_MISSING=true
+                break
+            fi
+        done
+        
+        # Ensuite les images Vocalyx
         IMAGES_EXIST=true
         for img in "vocalyx-api:latest" "vocalyx-frontend:latest" "vocalyx-transcribe:latest" "vocalyx-enrichment:latest"; do
             if ! sudo -u "$TARGET_USER" podman image exists "$img" 2>/dev/null; then
@@ -148,6 +181,19 @@ else
                 break
             fi
         done
+        
+        # Si des images officielles manquent, les télécharger
+        if [ "$OFFICIAL_MISSING" = true ]; then
+            echo -e "${YELLOW}  Certaines images officielles manquent. Téléchargement en cours...${NC}"
+            for img in "${OFFICIAL_IMAGES[@]}"; do
+                if ! sudo -u "$TARGET_USER" podman image exists "$img" 2>/dev/null; then
+                    echo "    - Téléchargement de $img..."
+                    sudo -u "$TARGET_USER" podman pull "$img" || {
+                        echo -e "${YELLOW}      Avertissement: Erreur lors du téléchargement de $img (peut être ignoré pour flower)${NC}"
+                    }
+                fi
+            done
+        fi
         
         if [ "$IMAGES_EXIST" = false ]; then
             echo -e "${YELLOW}  Certaines images manquent. Construction en cours...${NC}"
@@ -229,45 +275,67 @@ echo "  systemd --user rechargé"
 
 # Étape 5: Démarrage des services
 echo -e "${GREEN}[5/5] Démarrage des services (mode utilisateur)...${NC}"
+echo ""
 
-# Infrastructure
-echo "  - Infrastructure (réseau, volumes)..."
+# Infrastructure (réseau et volumes)
+echo -e "${BLUE}1. Infrastructure (réseau, volumes)...${NC}"
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-network.service || echo -e "${YELLOW}    Avertissement: réseau peut-être déjà créé${NC}"
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-postgres-data.service || echo -e "${YELLOW}    Avertissement: volume peut-être déjà créé${NC}"
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-redis-data.service || echo -e "${YELLOW}    Avertissement: volume peut-être déjà créé${NC}"
+echo ""
 
-# Services de base
-echo "  - Services de base (PostgreSQL, Redis)..."
+# Services de base (PostgreSQL et Redis)
+echo -e "${BLUE}2. Services de base (PostgreSQL, Redis)...${NC}"
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-postgres.service
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-redis.service
+echo -e "${GREEN}  ✓ PostgreSQL démarré${NC}"
+echo -e "${GREEN}  ✓ Redis démarré${NC}"
 sleep 5
+echo ""
 
 # Services API
-echo "  - Services API..."
+echo -e "${BLUE}3. Services API...${NC}"
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-api-01.service
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-api-02.service
+echo -e "${GREEN}  ✓ API-01 démarré${NC}"
+echo -e "${GREEN}  ✓ API-02 démarré${NC}"
 sleep 10
+echo ""
 
-# HAProxy
-echo "  - HAProxy..."
+# HAProxy (Load Balancer)
+echo -e "${BLUE}4. HAProxy (Load Balancer)...${NC}"
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-haproxy.service
+echo -e "${GREEN}  ✓ HAProxy démarré${NC}"
 sleep 5
+echo ""
 
 # Frontend
-echo "  - Frontend..."
+echo -e "${BLUE}5. Frontend...${NC}"
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-frontend.service
+echo -e "${GREEN}  ✓ Frontend démarré${NC}"
+echo ""
 
 # Workers
-echo "  - Workers..."
+echo -e "${BLUE}6. Workers de transcription...${NC}"
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-transcribe-01.service
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-transcribe-02.service
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-transcribe-03.service
+echo -e "${GREEN}  ✓ Transcribe-01 démarré${NC}"
+echo -e "${GREEN}  ✓ Transcribe-02 démarré${NC}"
+echo -e "${GREEN}  ✓ Transcribe-03 démarré${NC}"
+echo ""
+
+echo -e "${BLUE}7. Workers d'enrichissement...${NC}"
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-enrichment-01.service
 sudo -u "$TARGET_USER" systemctl --user start vocalyx-enrichment-02.service
+echo -e "${GREEN}  ✓ Enrichment-01 démarré${NC}"
+echo -e "${GREEN}  ✓ Enrichment-02 démarré${NC}"
+echo ""
 
 # Monitoring (optionnel)
-echo "  - Monitoring (Flower)..."
-sudo -u "$TARGET_USER" systemctl --user start vocalyx-flower.service || echo -e "${YELLOW}    Flower optionnel, peut être ignoré${NC}"
+echo -e "${BLUE}8. Monitoring (Flower - optionnel)...${NC}"
+sudo -u "$TARGET_USER" systemctl --user start vocalyx-flower.service && echo -e "${GREEN}  ✓ Flower démarré${NC}" || echo -e "${YELLOW}  ⚠ Flower optionnel, peut être ignoré${NC}"
+echo ""
 
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
