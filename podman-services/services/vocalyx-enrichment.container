@@ -1,0 +1,31 @@
+[Unit]
+Description=Vocalyx Enrichment Worker %i
+After=network-online.target
+
+[Container]
+Image=localhost/vocalyx-enrichment:latest
+ContainerName=vocalyx-enrichment-%i
+Network=vocalyx-network
+
+Environment=INSTANCE_NAME=enrichment-worker-%i
+Environment=VOCALYX_API_URL=http://vocalyx-haproxy:8100
+Environment=CELERY_BROKER_URL=redis://vocalyx-redis:6379/0
+Environment=CELERY_RESULT_BACKEND=redis://vocalyx-redis:6379/0
+Environment=LLM_DEVICE=cpu
+Environment=INTERNAL_API_KEY=secret_key_pour_comms_internes_123456
+Environment=LOG_LEVEL=INFO
+Environment=LOG_FILE_PATH=/app/logs/vocalyx-enrichment-%i.log
+
+# Volumes
+Volume=/opt/vocalyx/shared/models:/app/models:Z
+Volume=/opt/vocalyx/shared/logs:/app/logs:Z
+Volume=/opt/vocalyx/shared/models/enrichment:/app/models/enrichment:Z
+
+# Limites
+#CPUQuota=400%
+Memory=4G
+
+Exec=celery -A worker.celery_app worker --loglevel=info --concurrency=2 --hostname=enrichment-worker --without-gossip --without-mingle -Q enrichment
+
+[Service]
+Restart=always

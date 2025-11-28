@@ -1,0 +1,19 @@
+[Unit]
+Description=Vocalyx Flower Monitoring
+After=redis.service
+
+[Container]
+Image=docker.io/mher/flower:2.0
+ContainerName=vocalyx-flower
+Network=vocalyx-network
+PublishPort=5555:5555
+Environment=CELERY_BROKER_URL=redis://vocalyx-redis:6379/0
+Environment=CELERY_RESULT_BACKEND=redis://vocalyx-redis:6379/0
+Environment=FLOWER_PORT=5555
+
+Memory=256M
+
+Exec=celery --broker=redis://vocalyx-redis:6379/0 flower --port=5555
+
+[Service]
+Restart=always

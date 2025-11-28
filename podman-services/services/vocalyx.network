@@ -1,0 +1,10 @@
+[Unit]
+Description=Reseau Vocalyx
+
+[Network]
+NetworkName=vocalyx-network
+Driver=bridge
+Subnet=10.89.10.0/24
+Gateway=10.89.10.1
+DNSEnabled=true
+IPv6=false

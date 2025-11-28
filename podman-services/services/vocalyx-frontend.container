@@ -1,0 +1,26 @@
+[Unit]
+Description=Vocalyx Frontend
+After=vocalyx-haproxy.service
+
+[Container]
+Image=localhost/vocalyx-frontend:latest
+ContainerName=vocalyx-frontend
+Network=vocalyx-network
+PublishPort=8090:8080
+
+Environment=VOCALYX_API_URL=http://vocalyx-haproxy:8100
+Environment=INTERNAL_API_KEY=secret_key_pour_comms_internes_123456
+Environment=ADMIN_PROJECT_NAME=ISICOMTECH
+Environment=LOG_LEVEL=INFO
+Environment=LOG_FILE_PATH=/app/logs/vocalyx-frontend.log
+
+Volume=/opt/vocalyx/shared/logs:/app/logs:Z
+
+# Limites
+Memory=512M
+
+HealthCmd=curl -f http://localhost:8090/health
+HealthInterval=30s
+
+[Service]
+Restart=always

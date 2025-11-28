@@ -1,0 +1,20 @@
+[Unit]
+Description=Vocalyx Redis
+After=network-online.target
+
+[Container]
+Image=docker.io/library/redis:7-alpine
+ContainerName=vocalyx-redis
+Network=vocalyx-network
+Volume=redis_data:/data
+Exec=redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+PublishPort=6379:6379
+# Limites
+Memory=1G
+# Healthcheck
+HealthCmd=redis-cli ping
+HealthInterval=10s
+HealthRetries=5
+
+[Service]
+Restart=always

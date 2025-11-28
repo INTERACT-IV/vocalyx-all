@@ -1,0 +1,23 @@
+[Unit]
+Description=Vocalyx PostgreSQL
+After=network-online.target
+
+[Container]
+Image=docker.io/library/postgres:15-alpine
+ContainerName=vocalyx-postgres
+Network=vocalyx-network
+Volume=postgres_data:/var/lib/postgresql/data
+Environment=POSTGRES_DB=vocalyx_db
+Environment=POSTGRES_USER=vocalyx
+Environment=POSTGRES_PASSWORD=vocalyx_secret
+PublishPort=5432:5432
+# Limites
+Memory=1G
+# Healthcheck
+HealthCmd=pg_isready -U vocalyx -d vocalyx_db
+HealthInterval=10s
+HealthRetries=5
+HealthTimeout=5s
+
+[Service]
+Restart=always
