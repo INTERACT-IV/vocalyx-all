@@ -175,6 +175,69 @@ sudo -u ai-user systemctl --user start vocalyx-enrichment-02.service
 sudo -u ai-user systemctl --user start vocalyx-flower.service
 ```
 
+## Initialisation de la base de données
+
+**IMPORTANT** : Après avoir démarré les services, vous devez initialiser la base de données pour créer les tables et les données initiales (projet admin, utilisateur admin).
+
+### Méthode recommandée : Script automatique
+
+Utilisez le script `init-db-podman.sh` :
+
+```bash
+# Mode utilisateur (par défaut pour ai-user)
+./init-db-podman.sh --user-mode
+
+# Mode utilisateur avec un utilisateur spécifique
+./init-db-podman.sh --user-mode --user mon-utilisateur
+
+# Mode système (root)
+sudo ./init-db-podman.sh
+```
+
+Le script :
+1. Vérifie que les conteneurs PostgreSQL et API sont démarrés
+2. Attend que PostgreSQL et l'API soient prêts
+3. Exécute la fonction `init_db()` dans le conteneur API
+4. Affiche les tables créées et les informations importantes
+
+### Méthode manuelle
+
+Si vous préférez initialiser manuellement :
+
+```bash
+# Mode utilisateur
+sudo -u ai-user podman exec vocalyx-api-01 python -c "from database import init_db; init_db()"
+
+# Mode système
+sudo podman exec vocalyx-api-01 python -c "from database import init_db; init_db()"
+```
+
+### Vérifier l'initialisation
+
+Pour vérifier que la base de données est bien initialisée :
+
+```bash
+# Mode utilisateur
+sudo -u ai-user podman exec vocalyx-postgres psql -U vocalyx -d vocalyx_db -c "\dt"
+
+# Mode système
+sudo podman exec vocalyx-postgres psql -U vocalyx -d vocalyx_db -c "\dt"
+```
+
+Vous devriez voir les tables : `users`, `projects`, `transcriptions`, `user_project_association`.
+
+### Récupérer la clé API admin
+
+Après l'initialisation, la clé API du projet admin est affichée dans les logs du conteneur API :
+
+```bash
+# Mode utilisateur
+sudo -u ai-user podman logs vocalyx-api-01 | grep "Clé API Admin"
+
+# Mode système
+sudo podman logs vocalyx-api-01 | grep "Clé API Admin"
+```
+
 ### Démarrage automatique au boot (mode utilisateur)
 
 Pour activer le démarrage automatique de tous les services pour l'utilisateur `ai-user` :
@@ -256,13 +319,19 @@ sudo -u ai-user ./build-images.sh
 
 # 2. Déployer (les images sont déjà construites, donc skip-build)
 ./deploy-podman-systemd.sh --skip-build
+
+# 3. Initialiser la base de données (IMPORTANT)
+./init-db-podman.sh --user-mode
 ```
 
 ### Déploiement complet (tout en un)
 
 ```bash
-# Le script de déploiement construira les images si nécessaire (pour ai-user)
+# 1. Le script de déploiement construira les images si nécessaire (pour ai-user)
 ./deploy-podman-systemd.sh
+
+# 2. Initialiser la base de données (IMPORTANT)
+./init-db-podman.sh --user-mode
 ```
 
 ### Mise à jour après modification du code
