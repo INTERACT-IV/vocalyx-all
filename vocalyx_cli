@@ -77,6 +77,9 @@ Options spécifiques à transcribe:
   -m, --model MODEL          Modèle Whisper (tiny|base|small|medium|large-v3-turbo, défaut: small)
   --no-vad                   Désactiver VAD (Voice Activity Detection)
   --diarization              Activer la diarisation des locuteurs
+  --enrichment               Activer l'enrichissement automatique après la transcription (prompts par défaut)
+  --llm-model MODEL          Modèle LLM pour l'enrichissement (qwen2.5-7b-instruct|mistral-7b-instruct|phi-3-mini)
+  --wait                     Attendre la fin de la transcription (et de l'enrichissement si activé) et afficher le résultat (mode synchrone)
   -v, --verbose              Afficher les messages détaillés (par défaut: JSON uniquement)
 
 Options globales:
@@ -88,6 +91,9 @@ Exemples:
   $0 --action=transcribe -f audio.wav -P ISICOMTECH
   $0 --action=transcribe --file audio.mp3 --project MON_PROJET --model medium --diarization
   $0 --action=transcribe -f audio.wav -P ISICOMTECH --no-vad
+  $0 --action=transcribe -f audio.wav -P ISICOMTECH --wait
+  $0 --action=transcribe -f audio.wav -P ISICOMTECH --enrichment --wait
+  $0 --action=transcribe -f audio.wav -P ISICOMTECH --enrichment --llm-model qwen2.5-7b-instruct --wait
 EOF
 }
 
@@ -133,6 +139,7 @@ Options spécifiques à enrich:
   -m, --llm-model MODEL         Modèle LLM (qwen2.5-7b-instruct|mistral-7b-instruct|phi-3-mini)
   --text-correction              Activer la correction du texte (orthographe, grammaire)
   --prompts-file FILE           Fichier JSON contenant les prompts personnalisés
+  --wait                         Attendre la fin de l'enrichissement et afficher le résultat (mode synchrone)
   -v, --verbose                 Afficher les messages détaillés (par défaut: JSON uniquement)
 
 Options globales:
@@ -144,6 +151,7 @@ Exemples:
   $0 --action=enrich -tid abc123-def456-ghi789
   $0 --action=enrich --transcription-id abc123 --llm-model qwen2.5-7b-instruct --text-correction
   $0 --action=enrich -tid abc123 -m phi-3-mini --prompts-file prompts.json
+  $0 --action=enrich -tid abc123 --wait
 EOF
 }
 
@@ -222,6 +230,23 @@ get_project_api_key() {
     echo "$api_key"
 }
 
+# Fonction helper pour récupérer le statut d'une transcription avec token JWT
+get_transcription_status() {
+    local transcription_id=$1
+    local token=$2
+    local api_url=$3
+    
+    local response=$(curl -s -X GET "${api_url}/api/user/transcriptions/${transcription_id}" \
+        -H "Authorization: Bearer ${token}")
+    
+    if echo "$response" | grep -q '"id"'; then
+        echo "$response"
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Action transcribe
 action_transcribe() {
     # Variables pour les options
@@ -230,7 +255,10 @@ action_transcribe() {
     local whisper_model="small"
     local use_vad="true"
     local diarization="false"
+    local enrichment="false"
+    local llm_model=""
     local verbose="false"
+    local wait_for_completion="false"
     
     # Parser les arguments spécifiques à transcribe
     while [[ $# -gt 0 ]]; do
@@ -257,6 +285,18 @@ action_transcribe() {
                 ;;
             --diarization)
                 diarization="true"
+                shift
+                ;;
+            --enrichment)
+                enrichment="true"
+                shift
+                ;;
+            --llm-model)
+                llm_model="$2"
+                shift 2
+                ;;
+            --wait)
+                wait_for_completion="true"
                 shift
                 ;;
             -v|--verbose)
@@ -318,6 +358,23 @@ action_transcribe() {
         exit 1
     fi
     
+    # Valider le modèle LLM si fourni
+    if [ -n "$llm_model" ]; then
+        case "$llm_model" in
+            qwen2.5-7b-instruct|mistral-7b-instruct|phi-3-mini)
+                ;;
+            *)
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${RED}❌ Modèle LLM invalide: $llm_model${NC}" >&2
+                    echo -e "${YELLOW}Modèles valides: qwen2.5-7b-instruct, mistral-7b-instruct, phi-3-mini${NC}" >&2
+                else
+                    echo "{\"error\": \"Modèle LLM invalide: $llm_model\"}" >&2
+                fi
+                exit 1
+                ;;
+        esac
+    fi
+    
     # Demander le mot de passe si non fourni
     if [ -z "$PASSWORD" ]; then
         if [ "$verbose" = "true" ]; then
@@ -349,39 +406,244 @@ action_transcribe() {
         echo -e "   Fichier: $audio_file" >&2
         echo -e "   Projet: $project_name" >&2
         echo -e "   Modèle: $whisper_model" >&2
+        if [ "$enrichment" = "true" ]; then
+            echo -e "   Enrichissement: activé" >&2
+            if [ -n "$llm_model" ]; then
+                echo -e "   Modèle LLM: $llm_model" >&2
+            fi
+        fi
     fi
     
-    local response=$(curl -s -X POST "${API_URL}/api/transcriptions" \
-        -H "X-API-Key: ${api_key}" \
-        -F "file=@${audio_file}" \
-        -F "project_name=${project_name}" \
-        -F "whisper_model=${whisper_model}" \
-        -F "use_vad=${use_vad}" \
-        -F "diarization=${diarization}")
+    # Construire la requête curl avec les paramètres
+    local response
+    if [ -n "$llm_model" ]; then
+        response=$(curl -s -X POST "${API_URL}/api/transcriptions" \
+            -H "X-API-Key: ${api_key}" \
+            -F "file=@${audio_file}" \
+            -F "project_name=${project_name}" \
+            -F "whisper_model=${whisper_model}" \
+            -F "use_vad=${use_vad}" \
+            -F "diarization=${diarization}" \
+            -F "enrichment=${enrichment}" \
+            -F "llm_model=${llm_model}")
+    else
+        response=$(curl -s -X POST "${API_URL}/api/transcriptions" \
+            -H "X-API-Key: ${api_key}" \
+            -F "file=@${audio_file}" \
+            -F "project_name=${project_name}" \
+            -F "whisper_model=${whisper_model}" \
+            -F "use_vad=${use_vad}" \
+            -F "diarization=${diarization}" \
+            -F "enrichment=${enrichment}")
+    fi
     
     # Vérifier la réponse
     if echo "$response" | grep -q '"id"'; then
-        # Toujours afficher le JSON
-        if command -v jq &> /dev/null; then
-            echo "$response" | jq '.'
-        else
-            echo "$response"
-        fi
+        local transcription_id=$(echo "$response" | grep -o '"id":"[^"]*' | cut -d'"' -f4)
+        local initial_status=$(echo "$response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
         
-        # Afficher les messages verbeux si demandé
-        if [ "$verbose" = "true" ]; then
-            local transcription_id=$(echo "$response" | grep -o '"id":"[^"]*' | cut -d'"' -f4)
-            local status=$(echo "$response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
-            echo "" >&2
-            echo -e "${GREEN}✓ Transcription créée avec succès!${NC}" >&2
-            echo "ID de transcription: $transcription_id" >&2
-            echo "Statut: $status" >&2
-            echo "" >&2
-            echo "Pour suivre la progression:" >&2
-            echo "  curl -H \"X-API-Key: ${api_key}\" ${API_URL}/api/user/transcriptions/${transcription_id} | jq" >&2
-            echo "" >&2
-            echo "Ou visitez le dashboard:" >&2
-            echo "  ${API_URL%:8000}:8080" >&2
+        # Si --wait n'est pas activé, afficher le JSON et sortir
+        if [ "$wait_for_completion" != "true" ]; then
+            # Toujours afficher le JSON
+            if command -v jq &> /dev/null; then
+                echo "$response" | jq '.'
+            else
+                echo "$response"
+            fi
+            
+            # Afficher les messages verbeux si demandé
+            if [ "$verbose" = "true" ]; then
+                echo "" >&2
+                echo -e "${GREEN}✓ Transcription créée avec succès!${NC}" >&2
+                echo "ID de transcription: $transcription_id" >&2
+                echo "Statut: $initial_status" >&2
+                echo "" >&2
+                echo "Pour suivre la progression:" >&2
+                echo "  $0 --action=status -tid ${transcription_id}" >&2
+                echo "" >&2
+                echo "Ou visitez le dashboard:" >&2
+                echo "  ${API_URL%:8000}:8080" >&2
+            fi
+        else
+            # Mode --wait : attendre la fin de la transcription
+            if [ "$verbose" = "true" ]; then
+                echo -e "${BLUE}⏳ Attente de la fin de la transcription...${NC}" >&2
+                echo "ID: $transcription_id" >&2
+                echo "Statut initial: $initial_status" >&2
+            fi
+            
+            # Obtenir un token JWT pour le polling
+            local token_response=$(curl -s -X POST "${API_URL}/api/auth/token" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "username=${USERNAME}&password=${PASSWORD}")
+            
+            if ! echo "$token_response" | grep -q "access_token"; then
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${RED}❌ Erreur d'authentification pour le polling${NC}" >&2
+                    echo "$token_response" >&2
+                else
+                    echo "$token_response" >&2
+                fi
+                exit 1
+            fi
+            
+            local token=$(echo "$token_response" | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+            
+            if [ -z "$token" ]; then
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${RED}❌ Impossible d'extraire le token${NC}" >&2
+                fi
+                exit 1
+            fi
+            
+            # Polling jusqu'à ce que le statut soit "done" ou "error"
+            local status="$initial_status"
+            local max_attempts=3600  # 1 heure max (1 seconde par tentative)
+            local attempt=0
+            local poll_interval=2  # 2 secondes entre les tentatives
+            
+            while [ "$status" != "done" ] && [ "$status" != "error" ] && [ $attempt -lt $max_attempts ]; do
+                sleep $poll_interval
+                attempt=$((attempt + 1))
+                
+                local status_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
+                
+                if [ $? -eq 0 ]; then
+                    status=$(echo "$status_response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
+                    
+                    if [ "$verbose" = "true" ]; then
+                        # Afficher un point de progression toutes les 5 secondes
+                        if [ $((attempt % 3)) -eq 0 ]; then
+                            echo -e "${BLUE}.${NC}" >&2
+                        fi
+                    fi
+                else
+                    if [ "$verbose" = "true" ]; then
+                        echo -e "${YELLOW}⚠️  Erreur lors de la récupération du statut, nouvelle tentative...${NC}" >&2
+                    fi
+                fi
+            done
+            
+            if [ "$verbose" = "true" ]; then
+                echo "" >&2
+            fi
+            
+            # Récupérer le résultat final de la transcription
+            local final_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
+            
+            if [ $? -ne 0 ]; then
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${RED}❌ Impossible de récupérer le résultat final${NC}" >&2
+                else
+                    echo "{\"error\": \"Impossible de récupérer le résultat final\"}" >&2
+                fi
+                exit 1
+            fi
+            
+            local final_status=$(echo "$final_response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
+            
+            # Si l'enrichissement est activé et que la transcription est terminée, attendre l'enrichissement
+            if [ "$enrichment" = "true" ] && [ "$final_status" = "done" ]; then
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${GREEN}✓ Transcription terminée${NC}" >&2
+                    echo -e "${BLUE}⏳ Attente de la fin de l'enrichissement...${NC}" >&2
+                fi
+                
+                # Polling jusqu'à ce que enrichment_status soit "done" ou "error"
+                local enrichment_status="pending"
+                local enrichment_attempt=0
+                local enrichment_max_attempts=3600  # 1 heure max
+                
+                while [ "$enrichment_status" != "done" ] && [ "$enrichment_status" != "error" ] && [ $enrichment_attempt -lt $enrichment_max_attempts ]; do
+                    sleep $poll_interval
+                    enrichment_attempt=$((enrichment_attempt + 1))
+                    
+                    local enrichment_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
+                    
+                    if [ $? -eq 0 ]; then
+                        # Extraire enrichment_status depuis la réponse
+                        enrichment_status=$(echo "$enrichment_response" | grep -o '"enrichment_status":"[^"]*' | cut -d'"' -f4)
+                        
+                        # Si enrichment_status est null ou vide, c'est qu'il n'y a pas d'enrichissement
+                        if [ -z "$enrichment_status" ] || [ "$enrichment_status" = "null" ]; then
+                            enrichment_status="pending"
+                        fi
+                        
+                        if [ "$verbose" = "true" ]; then
+                            # Afficher un point de progression toutes les 5 secondes
+                            if [ $((enrichment_attempt % 3)) -eq 0 ]; then
+                                echo -e "${BLUE}.${NC}" >&2
+                            fi
+                        fi
+                    else
+                        if [ "$verbose" = "true" ]; then
+                            echo -e "${YELLOW}⚠️  Erreur lors de la récupération du statut, nouvelle tentative...${NC}" >&2
+                        fi
+                    fi
+                done
+                
+                if [ "$verbose" = "true" ]; then
+                    echo "" >&2
+                fi
+                
+                # Récupérer le résultat final avec l'enrichissement
+                final_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
+                
+                if [ $? -ne 0 ]; then
+                    if [ "$verbose" = "true" ]; then
+                        echo -e "${RED}❌ Impossible de récupérer le résultat final de l'enrichissement${NC}" >&2
+                    else
+                        echo "{\"error\": \"Impossible de récupérer le résultat final de l'enrichissement\"}" >&2
+                    fi
+                    exit 1
+                fi
+                
+                # Vérifier si on a atteint la limite de tentatives pour l'enrichissement
+                if [ $enrichment_attempt -ge $enrichment_max_attempts ]; then
+                    if [ "$verbose" = "true" ]; then
+                        echo -e "${YELLOW}⚠️  Timeout: l'enrichissement prend plus de temps que prévu${NC}" >&2
+                    else
+                        echo "{\"error\": \"Timeout: l'enrichissement prend plus de temps que prévu\"}" >&2
+                    fi
+                    exit 1
+                fi
+            fi
+            
+            # Afficher le résultat final en JSON
+            if command -v jq &> /dev/null; then
+                echo "$final_response" | jq '.'
+            else
+                echo "$final_response"
+            fi
+            
+            if [ "$verbose" = "true" ]; then
+                echo "" >&2
+                if [ "$final_status" = "done" ]; then
+                    echo -e "${GREEN}✓ Transcription terminée avec succès!${NC}" >&2
+                    if [ "$enrichment" = "true" ]; then
+                        local final_enrichment_status=$(echo "$final_response" | grep -o '"enrichment_status":"[^"]*' | cut -d'"' -f4)
+                        if [ "$final_enrichment_status" = "done" ]; then
+                            echo -e "${GREEN}✓ Enrichissement terminé avec succès!${NC}" >&2
+                        elif [ "$final_enrichment_status" = "error" ]; then
+                            local enrichment_error=$(echo "$final_response" | grep -o '"enrichment_error":"[^"]*' | cut -d'"' -f4)
+                            echo -e "${YELLOW}⚠️  Enrichissement échoué: ${enrichment_error}${NC}" >&2
+                        fi
+                    fi
+                elif [ "$final_status" = "error" ]; then
+                    local error_msg=$(echo "$final_response" | grep -o '"error_message":"[^"]*' | cut -d'"' -f4)
+                    echo -e "${RED}❌ Transcription échouée: ${error_msg}${NC}" >&2
+                fi
+            fi
+            
+            # Vérifier si on a atteint la limite de tentatives pour la transcription
+            if [ $attempt -ge $max_attempts ]; then
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${YELLOW}⚠️  Timeout: la transcription prend plus de temps que prévu${NC}" >&2
+                else
+                    echo "{\"error\": \"Timeout: la transcription prend plus de temps que prévu\"}" >&2
+                fi
+                exit 1
+            fi
         fi
     else
         if [ "$verbose" = "true" ]; then
@@ -575,6 +837,7 @@ action_enrich() {
     local text_correction=""
     local prompts_file=""
     local verbose="false"
+    local wait_for_completion="false"
     
     # Parser les arguments spécifiques à enrich
     while [[ $# -gt 0 ]]; do
@@ -598,6 +861,10 @@ action_enrich() {
             --prompts-file)
                 prompts_file="$2"
                 shift 2
+                ;;
+            --wait)
+                wait_for_completion="true"
+                shift
                 ;;
             -v|--verbose)
                 verbose="true"
@@ -776,24 +1043,113 @@ action_enrich() {
     
     # Vérifier la réponse
     if echo "$response" | grep -q '"task_id"'; then
-        # Toujours afficher le JSON
-        if command -v jq &> /dev/null; then
-            echo "$response" | jq '.'
-        else
-            echo "$response"
-        fi
+        local task_id=$(echo "$response" | grep -o '"task_id":"[^"]*' | cut -d'"' -f4)
         
-        # Afficher les messages verbeux si demandé
-        if [ "$verbose" = "true" ]; then
-            local task_id=$(echo "$response" | grep -o '"task_id":"[^"]*' | cut -d'"' -f4)
-            local status=$(echo "$response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
-            echo "" >&2
-            echo -e "${GREEN}✓ Enrichissement déclenché avec succès!${NC}" >&2
-            echo "ID de tâche: $task_id" >&2
-            echo "Statut: $status" >&2
-            echo "" >&2
-            echo "Pour suivre la progression:" >&2
-            echo "  $0 --action=status -tid ${transcription_id}" >&2
+        # Si --wait n'est pas activé, afficher le JSON et sortir
+        if [ "$wait_for_completion" != "true" ]; then
+            # Toujours afficher le JSON
+            if command -v jq &> /dev/null; then
+                echo "$response" | jq '.'
+            else
+                echo "$response"
+            fi
+            
+            # Afficher les messages verbeux si demandé
+            if [ "$verbose" = "true" ]; then
+                local status=$(echo "$response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
+                echo "" >&2
+                echo -e "${GREEN}✓ Enrichissement déclenché avec succès!${NC}" >&2
+                echo "ID de tâche: $task_id" >&2
+                echo "Statut: $status" >&2
+                echo "" >&2
+                echo "Pour suivre la progression:" >&2
+                echo "  $0 --action=status -tid ${transcription_id}" >&2
+            fi
+        else
+            # Mode --wait : attendre la fin de l'enrichissement
+            if [ "$verbose" = "true" ]; then
+                echo -e "${BLUE}⏳ Attente de la fin de l'enrichissement...${NC}" >&2
+                echo "ID de transcription: $transcription_id" >&2
+                echo "ID de tâche: $task_id" >&2
+            fi
+            
+            # Polling jusqu'à ce que enrichment_status soit "done" ou "error"
+            local enrichment_status="pending"
+            local max_attempts=3600  # 1 heure max (1 seconde par tentative)
+            local attempt=0
+            local poll_interval=2  # 2 secondes entre les tentatives
+            
+            while [ "$enrichment_status" != "done" ] && [ "$enrichment_status" != "error" ] && [ $attempt -lt $max_attempts ]; do
+                sleep $poll_interval
+                attempt=$((attempt + 1))
+                
+                local status_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
+                
+                if [ $? -eq 0 ]; then
+                    # Extraire enrichment_status depuis la réponse
+                    enrichment_status=$(echo "$status_response" | grep -o '"enrichment_status":"[^"]*' | cut -d'"' -f4)
+                    
+                    # Si enrichment_status est null ou vide, c'est qu'il n'y a pas d'enrichissement
+                    if [ -z "$enrichment_status" ] || [ "$enrichment_status" = "null" ]; then
+                        enrichment_status="pending"
+                    fi
+                    
+                    if [ "$verbose" = "true" ]; then
+                        # Afficher un point de progression toutes les 5 secondes
+                        if [ $((attempt % 3)) -eq 0 ]; then
+                            echo -e "${BLUE}.${NC}" >&2
+                        fi
+                    fi
+                else
+                    if [ "$verbose" = "true" ]; then
+                        echo -e "${YELLOW}⚠️  Erreur lors de la récupération du statut, nouvelle tentative...${NC}" >&2
+                    fi
+                fi
+            done
+            
+            if [ "$verbose" = "true" ]; then
+                echo "" >&2
+            fi
+            
+            # Récupérer le résultat final
+            local final_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
+            
+            if [ $? -eq 0 ]; then
+                # Afficher le résultat final en JSON
+                if command -v jq &> /dev/null; then
+                    echo "$final_response" | jq '.'
+                else
+                    echo "$final_response"
+                fi
+                
+                if [ "$verbose" = "true" ]; then
+                    local final_enrichment_status=$(echo "$final_response" | grep -o '"enrichment_status":"[^"]*' | cut -d'"' -f4)
+                    echo "" >&2
+                    if [ "$final_enrichment_status" = "done" ]; then
+                        echo -e "${GREEN}✓ Enrichissement terminé avec succès!${NC}" >&2
+                    elif [ "$final_enrichment_status" = "error" ]; then
+                        local error_msg=$(echo "$final_response" | grep -o '"enrichment_error":"[^"]*' | cut -d'"' -f4)
+                        echo -e "${RED}❌ Enrichissement échoué: ${error_msg}${NC}" >&2
+                    fi
+                fi
+            else
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${RED}❌ Impossible de récupérer le résultat final${NC}" >&2
+                else
+                    echo "{\"error\": \"Impossible de récupérer le résultat final\"}" >&2
+                fi
+                exit 1
+            fi
+            
+            # Vérifier si on a atteint la limite de tentatives
+            if [ $attempt -ge $max_attempts ]; then
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${YELLOW}⚠️  Timeout: l'enrichissement prend plus de temps que prévu${NC}" >&2
+                else
+                    echo "{\"error\": \"Timeout: l'enrichissement prend plus de temps que prévu\"}" >&2
+                fi
+                exit 1
+            fi
         fi
     else
         if [ "$verbose" = "true" ]; then
