@@ -12,7 +12,7 @@ Environment=INSTANCE_NAME=worker
 Environment=VOCALYX_API_URL=http://vocalyx-haproxy:8100
 Environment=CELERY_BROKER_URL=redis://vocalyx-redis:6379/0
 Environment=CELERY_RESULT_BACKEND=redis://vocalyx-redis:6379/0
-Environment=WHISPER_MODEL=./models/openai-whisper-small
+Environment=WHISPER_MODEL=./models/transcribe/openai-whisper-small
 Environment=WHISPER_DEVICE=cpu
 Environment=WHISPER_COMPUTE_TYPE=int8
 Environment=WHISPER_LANGUAGE=fr
@@ -25,7 +25,7 @@ Environment=LOG_FILE_PATH=/app/logs/vocalyx-transcribe.log
 
 # Volumes
 Volume=/opt/vocalyx/shared/uploads:/app/shared_uploads:Z
-Volume=/opt/vocalyx/shared/models:/app/models:Z
+Volume=/opt/vocalyx/shared/models/transcribe:/app/models/transcribe:Z
 Volume=/opt/vocalyx/shared/logs:/app/logs:Z
 
 # Limites (CPUQuota 400% = 4 coeurs)

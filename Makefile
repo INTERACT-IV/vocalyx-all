@@ -131,6 +131,11 @@ init-db-force: ## Forcer la réinitialisation de la base de données
 db-shell: ## Ouvrir un shell PostgreSQL
 	docker-compose exec postgres psql -U vocalyx -d vocalyx_db
 
+db-migrate: ## Exécuter la migration add_enrichment_columns.sql
+	@echo "$(BLUE)Running database migration...$(NC)"
+	docker-compose exec -T postgres psql -U vocalyx -d vocalyx_db < vocalyx-api/migrations/add_enrichment_columns.sql
+	@echo "$(GREEN)✓ Migration completed$(NC)"
+
 db-backup: ## Sauvegarder la base de données
 	@echo "$(BLUE)Creating database backup...$(NC)"
 	mkdir -p shared/backups

@@ -1,0 +1,13 @@
+# Configuration Vocalyx
+# Copiez ce fichier vers ~/.vocalyx_config et remplissez vos identifiants
+
+# URL de l'API Vocalyx
+VOCALYX_API_URL=http://localhost:8000
+
+# Identifiants de connexion
+VOCALYX_USERNAME=admin
+VOCALYX_PASSWORD=votre_mot_de_passe
+
+# Optionnel: Clé API du projet (si vous la connaissez déjà)
+# VOCALYX_PROJECT_API_KEY=vk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+

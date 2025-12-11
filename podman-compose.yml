@@ -274,7 +274,7 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       
       # Whisper
-      WHISPER_MODEL: ./models/openai-whisper-small
+      WHISPER_MODEL: ./models/transcribe/openai-whisper-small
       WHISPER_DEVICE: cpu
       WHISPER_COMPUTE_TYPE: int8
       WHISPER_LANGUAGE: fr
@@ -294,7 +294,7 @@ services:
       LOG_FILE_PATH: /app/logs/vocalyx-transcribe-01.log
     volumes:
       - ./shared/uploads:/app/shared_uploads
-      - ./shared/models:/app/models
+      - ./shared/models/transcribe:/app/models/transcribe
       - ./shared/logs:/app/logs
     depends_on:
       redis:
@@ -457,7 +457,7 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       
       # Whisper
-      WHISPER_MODEL: ./models/openai-whisper-small
+      WHISPER_MODEL: ./models/transcribe/openai-whisper-small
       WHISPER_DEVICE: cpu
       WHISPER_COMPUTE_TYPE: int8
       WHISPER_LANGUAGE: fr
@@ -477,7 +477,7 @@ services:
       LOG_FILE_PATH: /app/logs/vocalyx-transcribe-02.log
     volumes:
       - ./shared/uploads:/app/shared_uploads
-      - ./shared/models:/app/models
+      - ./shared/models/transcribe:/app/models/transcribe
       - ./shared/logs:/app/logs
     depends_on:
       redis:
@@ -524,7 +524,7 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       
       # Whisper
-      WHISPER_MODEL: ./models/openai-whisper-small
+      WHISPER_MODEL: ./models/transcribe/openai-whisper-small
       WHISPER_DEVICE: cpu
       WHISPER_COMPUTE_TYPE: int8
       WHISPER_LANGUAGE: fr
@@ -544,7 +544,7 @@ services:
       LOG_FILE_PATH: /app/logs/vocalyx-transcribe-03.log
     volumes:
       - ./shared/uploads:/app/shared_uploads
-      - ./shared/models:/app/models
+      - ./shared/models/transcribe:/app/models/transcribe
       - ./shared/logs:/app/logs
     depends_on:
       redis:

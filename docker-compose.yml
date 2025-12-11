@@ -205,6 +205,7 @@ services:
       retries: 3
       start_period: 40s
 
+
   # ==========================================================================
   # FRONTEND - vocalyx-frontend (anciennement dashboard)
   # ==========================================================================
@@ -272,8 +273,11 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       
+      # Redis Transcription (DB dédiée pour les segments)
+      REDIS_TRANSCRIPTION_URL: redis://redis:6379/2
+      
       # Whisper
-      WHISPER_MODEL: ./models/openai-whisper-small
+      WHISPER_MODEL: ./models/transcribe/openai-whisper-small
       WHISPER_DEVICE: cpu
       WHISPER_COMPUTE_TYPE: int8
       WHISPER_LANGUAGE: fr
@@ -293,7 +297,7 @@ services:
       LOG_FILE_PATH: /app/logs/vocalyx-transcribe-01.log
     volumes:
       - ./shared/uploads:/app/shared_uploads
-      - ./shared/models:/app/models
+      - ./shared/models/transcribe:/app/models/transcribe
       - ./shared/logs:/app/logs
     depends_on:
       redis:
@@ -321,128 +325,7 @@ services:
       --without-mingle
       -Q transcription
 
-  # ==========================================================================
-  # WORKER ENRICHISSEMENT #1 - vocalyx-enrichment
-  # ==========================================================================
-  vocalyx-enrichment-01:
-    build:
-      context: ./vocalyx-enrichment
-      dockerfile: Dockerfile
-    container_name: vocalyx-enrichment-01
-    restart: unless-stopped
-    environment:
-      # Instance
-      INSTANCE_NAME: enrichment-worker-01
-      
-      # API - passe par HAProxy pour le load balancing
-      VOCALYX_API_URL: http://haproxy:8000
-      
-      # Celery
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      
-      # LLM
-      LLM_DEVICE: cpu
-      
-      # Sécurité (⚠️ DOIT être identique à vocalyx-api)
-      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
-      
-      # Logging
-      LOG_LEVEL: INFO
-      LOG_COLORED: "true"
-      LOG_FILE_PATH: /app/logs/vocalyx-enrichment-01.log
-    volumes:
-      - ./shared/logs:/app/logs
-      - ./shared/models:/app/models
-      - ./shared/models/enrichment:/app/models/enrichment
-    depends_on:
-      redis:
-        condition: service_healthy
-      haproxy:
-        condition: service_started
-    networks:
-      - vocalyx-network
-    # ✅ AJOUT: Limites de ressources (LLM peut consommer beaucoup de RAM)
-    deploy:
-      resources:
-        limits:
-          cpus: "4"
-          memory: 4G
-        reservations:
-          cpus: "4"
-          memory: 2G
-    # Commande de démarrage
-    # Queue spécifique pour l'enrichissement
-    command: >
-      celery -A worker.celery_app worker
-      --loglevel=info
-      --concurrency=2
-      --hostname=enrichment-worker-01@%h
-      --without-gossip
-      --without-mingle
-      -Q enrichment
-
-  # ==========================================================================
-  # WORKER ENRICHISSEMENT #2 - vocalyx-enrichment
-  # ==========================================================================
-  vocalyx-enrichment-02:
-    build:
-      context: ./vocalyx-enrichment
-      dockerfile: Dockerfile
-    container_name: vocalyx-enrichment-02
-    restart: unless-stopped
-    environment:
-      # Instance
-      INSTANCE_NAME: enrichment-worker-02
-      
-      # API - passe par HAProxy pour le load balancing
-      VOCALYX_API_URL: http://haproxy:8000
-      
-      # Celery
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      
-      # LLM
-      LLM_DEVICE: cpu
-      
-      # Sécurité (⚠️ DOIT être identique à vocalyx-api)
-      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
-      
-      # Logging
-      LOG_LEVEL: INFO
-      LOG_COLORED: "true"
-      LOG_FILE_PATH: /app/logs/vocalyx-enrichment-02.log
-    volumes:
-      - ./shared/logs:/app/logs
-      - ./shared/models:/app/models
-      - ./shared/models/enrichment:/app/models/enrichment
-    depends_on:
-      redis:
-        condition: service_healthy
-      haproxy:
-        condition: service_started
-    networks:
-      - vocalyx-network
-    # ✅ AJOUT: Limites de ressources (LLM peut consommer beaucoup de RAM)
-    deploy:
-      resources:
-        limits:
-          cpus: "4"
-          memory: 4G
-        reservations:
-          cpus: "4"
-          memory: 2G
-    # Commande de démarrage
-    # Queue spécifique pour l'enrichissement
-    command: >
-      celery -A worker.celery_app worker
-      --loglevel=info
-      --concurrency=2
-      --hostname=enrichment-worker-02@%h
-      --without-gossip
-      --without-mingle
-      -Q enrichment
-
+  
   # ==========================================================================
   # WORKER TRANSCRIPTION #2 - vocalyx-transcribe
   # ==========================================================================
@@ -463,8 +346,11 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       
+      # Redis Transcription (DB dédiée pour les segments)
+      REDIS_TRANSCRIPTION_URL: redis://redis:6379/2
+      
       # Whisper
-      WHISPER_MODEL: ./models/openai-whisper-small
+      WHISPER_MODEL: ./models/transcribe/openai-whisper-small
       WHISPER_DEVICE: cpu
       WHISPER_COMPUTE_TYPE: int8
       WHISPER_LANGUAGE: fr
@@ -484,7 +370,7 @@ services:
       LOG_FILE_PATH: /app/logs/vocalyx-transcribe-02.log
     volumes:
       - ./shared/uploads:/app/shared_uploads
-      - ./shared/models:/app/models
+      - ./shared/models/transcribe:/app/models/transcribe
       - ./shared/logs:/app/logs
     depends_on:
       redis:
@@ -508,75 +394,6 @@ services:
       --loglevel=info
       --concurrency=2
       --hostname=worker-02@%h
-      --without-gossip
-      --without-mingle
-      -Q transcription
-
-  # ==========================================================================
-  # WORKER TRANSCRIPTION #3 - vocalyx-transcribe
-  # ==========================================================================
-  vocalyx-transcribe-03:
-    build:
-      context: ./vocalyx-transcribe
-      dockerfile: Dockerfile
-    container_name: vocalyx-transcribe-03
-    restart: unless-stopped
-    environment:
-      # Instance
-      INSTANCE_NAME: worker-03
-      
-      # API - passe par HAProxy pour le load balancing
-      VOCALYX_API_URL: http://haproxy:8000
-      
-      # Celery
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      
-      # Whisper
-      WHISPER_MODEL: ./models/openai-whisper-small
-      WHISPER_DEVICE: cpu
-      WHISPER_COMPUTE_TYPE: int8
-      WHISPER_LANGUAGE: fr
-      
-      # Performance
-      MAX_WORKERS: 2
-      VAD_ENABLED: "true"
-
-      UPLOAD_DIR: /app/shared_uploads
-      
-      # Sécurité (⚠️ DOIT être identique à vocalyx-api)
-      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
-      
-      # Logging
-      LOG_LEVEL: INFO
-      LOG_COLORED: "true"
-      LOG_FILE_PATH: /app/logs/vocalyx-transcribe-03.log
-    volumes:
-      - ./shared/uploads:/app/shared_uploads
-      - ./shared/models:/app/models
-      - ./shared/logs:/app/logs
-    depends_on:
-      redis:
-        condition: service_healthy
-      haproxy:
-        condition: service_started
-    networks:
-      - vocalyx-network
-    # ✅ AJOUT: Limites de ressources (Whisper consomme beaucoup)
-    deploy:
-      resources:
-        limits:
-          cpus: "4"
-          memory: 8G
-        reservations:
-          cpus: "4"
-          memory: 4G
-    # Commande de démarrage
-    command: >
-      celery -A worker.celery_app worker
-      --loglevel=info
-      --concurrency=2
-      --hostname=worker-03@%h
       --without-gossip
       --without-mingle
       -Q transcription

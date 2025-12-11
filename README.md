@@ -26,7 +26,7 @@ vocalyx-all/
 ├── shared/               # Ressources partagées
 │   ├── logs/            # Fichiers de logs
 │   ├── uploads/         # Fichiers audio uploadés
-│   └── models/          # Modèles Whisper et Pyannote
+│   └── models/          # Modèles Whisper (transcription)
 ├── docker-compose.yml    # Configuration Docker Compose
 └── Makefile             # Commandes de gestion
 ```
@@ -37,7 +37,7 @@ vocalyx-all/
 
 - Docker et Docker Compose
 - 8 GB de RAM minimum (16 GB recommandé pour les workers)
-- Espace disque suffisant pour les modèles (~5 GB)
+- Espace disque suffisant pour les modèles Whisper (~2-5 GB selon les modèles choisis)
 
 ### Installation
 
