@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (ex: v1.0.0)'
+        required: true
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from tag
+        id: tag_version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION=${{ github.event.inputs.version }}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          cat > release_notes.md << EOF
+          # Release ${{ steps.tag_version.outputs.version }}
+          
+          ## 🎉 Nouvelles fonctionnalités
+          - À compléter
+          
+          ## 🐛 Corrections de bugs
+          - À compléter
+          
+          ## 📝 Améliorations
+          - À compléter
+          
+          ## 📦 Installation
+          
+          Consultez la [documentation](../README.md) pour les instructions d'installation.
+          EOF
+          echo "notes_path=release_notes.md" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag_version.outputs.version }}
+          name: Release ${{ steps.tag_version.outputs.version }}
+          body_path: ${{ steps.release_notes.outputs.notes_path }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish Docker images (optional)
+        if: false  # Activer si vous avez un registry Docker
+        run: |
+          echo "TODO: Build and push Docker images to registry"
+          # docker build -t your-registry/vocalyx-api:${{ steps.tag_version.outputs.version }} ./vocalyx-api
+          # docker push your-registry/vocalyx-api:${{ steps.tag_version.outputs.version }}
