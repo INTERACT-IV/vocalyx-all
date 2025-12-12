@@ -34,6 +34,7 @@ Actions disponibles:
   transcribe    Créer une transcription audio
   status        Récupérer le statut et le résultat d'une transcription
   enrich        Déclencher l'enrichissement d'une transcription
+  purge         Supprimer des transcriptions selon des critères
 
 Options globales:
   -u, --username USERNAME    Nom d'utilisateur (défaut: admin ou depuis config)
@@ -57,6 +58,7 @@ Pour l'aide spécifique à une action:
   $0 --action=transcribe --help
   $0 --action=status --help
   $0 --action=enrich --help
+  $0 --action=purge --help
 EOF
 }
 
@@ -155,6 +157,36 @@ Exemples:
 EOF
 }
 
+# Fonction d'aide pour l'action purge
+show_purge_help() {
+    cat << EOF
+Action: purge
+
+Supprimer des transcriptions selon des critères (fichiers audio inclus).
+
+Usage: $0 --action=purge [options]
+
+Options (au moins une requise):
+  -tid, --transcription-id ID    ID de la transcription à supprimer
+  -P, --project PROJECT          Supprimer toutes les transcriptions d'un projet
+  -d, --date DATE                Supprimer les transcriptions depuis cette date (format: YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS)
+  --dry-run                      Afficher les transcriptions qui seraient supprimées sans les supprimer
+  -v, --verbose                  Afficher les messages détaillés (par défaut: JSON uniquement)
+
+Options globales:
+  -u, --username USERNAME    Nom d'utilisateur (défaut: admin ou depuis config)
+  -p, --password PASSWORD    Mot de passe (ou depuis config)
+  -a, --api-url URL          URL de l'API (défaut: http://localhost:8000)
+
+Exemples:
+  $0 --action=purge -tid abc123-def456-ghi789
+  $0 --action=purge -P ISICOMTECH
+  $0 --action=purge -d 2024-01-01
+  $0 --action=purge -P ISICOMTECH -d 2024-01-01
+  $0 --action=purge -P ISICOMTECH --dry-run
+EOF
+}
+
 # Charger la configuration depuis le fichier (fonction pour recharger si nécessaire)
 load_config() {
     if [ -f "$CONFIG_FILE" ]; then
@@ -163,6 +195,9 @@ load_config() {
         API_URL="${VOCALYX_API_URL:-${API_URL:-http://localhost:8000}}"
         USERNAME="${VOCALYX_USERNAME:-${USERNAME:-admin}}"
         PASSWORD="${VOCALYX_PASSWORD:-${PASSWORD:-}}"
+        # La clé interne peut être définie via INTERNAL_API_KEY ou VOCALYX_INTERNAL_KEY
+        # Elle est exportée pour être accessible dans les fonctions
+        export INTERNAL_API_KEY="${INTERNAL_API_KEY:-${VOCALYX_INTERNAL_KEY:-}}"
         echo -e "${BLUE}✓ Configuration chargée depuis $CONFIG_FILE${NC}" >&2
     fi
 }
@@ -228,6 +263,67 @@ get_project_api_key() {
     fi
     
     echo "$api_key"
+}
+
+# Récupérer la clé API du projet admin (utilisée comme clé interne pour DELETE)
+get_admin_api_key() {
+    local username=$1
+    local password=$2
+    local api_url=$3
+    local verbose=${4:-false}
+    
+    # Obtenir le token JWT
+    if [ "$verbose" = "true" ]; then
+        echo -e "${BLUE}🔐 Authentification...${NC}" >&2
+    fi
+    local token_response=$(curl -s -X POST "${api_url}/api/auth/token" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "username=${username}&password=${password}")
+    
+    if ! echo "$token_response" | grep -q "access_token"; then
+        if [ "$verbose" = "true" ]; then
+            echo -e "${RED}❌ Erreur d'authentification${NC}" >&2
+            echo "$token_response" >&2
+        else
+            echo "$token_response" >&2
+        fi
+        return 1
+    fi
+    
+    local token=$(echo "$token_response" | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+    
+    if [ -z "$token" ]; then
+        if [ "$verbose" = "true" ]; then
+            echo -e "${RED}❌ Impossible d'extraire le token${NC}" >&2
+        fi
+        return 1
+    fi
+    
+    if [ "$verbose" = "true" ]; then
+        echo -e "${GREEN}✓ Authentification réussie${NC}" >&2
+    fi
+    
+    # Récupérer la clé API du projet admin
+    if [ "$verbose" = "true" ]; then
+        echo -e "${BLUE}🔑 Récupération de la clé API du projet admin...${NC}" >&2
+    fi
+    local admin_response=$(curl -s -X GET "${api_url}/api/admin/admin-api-key" \
+        -H "Authorization: Bearer ${token}")
+    
+    # Extraire la clé API du projet admin
+    local admin_api_key=$(echo "$admin_response" | grep -o '"api_key":"[^"]*' | cut -d'"' -f4)
+    
+    if [ -z "$admin_api_key" ]; then
+        if [ "$verbose" = "true" ]; then
+            echo -e "${RED}❌ Impossible de récupérer la clé API du projet admin${NC}" >&2
+            echo "$admin_response" >&2
+        else
+            echo "$admin_response" >&2
+        fi
+        return 1
+    fi
+    
+    echo "$admin_api_key"
 }
 
 # Fonction helper pour récupérer le statut d'une transcription avec token JWT
@@ -1162,6 +1258,426 @@ action_enrich() {
     fi
 }
 
+# Action purge
+action_purge() {
+    local transcription_id=""
+    local project_name=""
+    local date_from=""
+    local dry_run="false"
+    local verbose="false"
+    
+    # Parser les arguments spécifiques à purge
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                show_purge_help
+                exit 0
+                ;;
+            -tid|--transcription-id)
+                transcription_id="$2"
+                shift 2
+                ;;
+            -P|--project)
+                project_name="$2"
+                shift 2
+                ;;
+            -d|--date)
+                date_from="$2"
+                shift 2
+                ;;
+            --dry-run)
+                dry_run="true"
+                shift
+                ;;
+            -v|--verbose)
+                verbose="true"
+                shift
+                ;;
+            -u|--username)
+                USERNAME="$2"
+                shift 2
+                ;;
+            -p|--password)
+                PASSWORD="$2"
+                shift 2
+                ;;
+            -a|--api-url)
+                API_URL="$2"
+                shift 2
+                ;;
+            -*)
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${RED}❌ Option inconnue: $1${NC}" >&2
+                else
+                    echo "{\"error\": \"Option inconnue: $1\"}" >&2
+                fi
+                show_purge_help
+                exit 1
+                ;;
+            *)
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${RED}❌ Argument inattendu: $1${NC}" >&2
+                else
+                    echo "{\"error\": \"Argument inattendu: $1\"}" >&2
+                fi
+                show_purge_help
+                exit 1
+                ;;
+        esac
+    done
+    
+    # Vérifier qu'au moins un critère est fourni
+    if [ -z "$transcription_id" ] && [ -z "$project_name" ] && [ -z "$date_from" ]; then
+        if [ "$verbose" = "true" ]; then
+            echo -e "${RED}❌ Au moins un critère requis (transcription-id, project ou date)${NC}" >&2
+        else
+            echo "{\"error\": \"Au moins un critère requis (transcription-id, project ou date)\"}" >&2
+        fi
+        show_purge_help
+        exit 1
+    fi
+    
+    # Demander le mot de passe si non fourni
+    if [ -z "$PASSWORD" ]; then
+        if [ "$verbose" = "true" ]; then
+            echo -n "Mot de passe pour $USERNAME: "
+        fi
+        read -s PASSWORD
+        if [ "$verbose" = "true" ]; then
+            echo ""
+        fi
+    fi
+    
+    # Obtenir le token JWT
+    if [ "$verbose" = "true" ]; then
+        echo -e "${BLUE}🔐 Authentification...${NC}" >&2
+    fi
+    local token_response=$(curl -s -X POST "${API_URL}/api/auth/token" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "username=${USERNAME}&password=${PASSWORD}")
+    
+    if ! echo "$token_response" | grep -q "access_token"; then
+        if [ "$verbose" = "true" ]; then
+            echo -e "${RED}❌ Erreur d'authentification${NC}" >&2
+            echo "$token_response" >&2
+        else
+            echo "$token_response" >&2
+        fi
+        exit 1
+    fi
+    
+    local token=$(echo "$token_response" | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+    
+    if [ -z "$token" ]; then
+        if [ "$verbose" = "true" ]; then
+            echo -e "${RED}❌ Impossible d'extraire le token${NC}" >&2
+        fi
+        exit 1
+    fi
+    
+    if [ "$verbose" = "true" ]; then
+        echo -e "${GREEN}✓ Authentification réussie${NC}" >&2
+    fi
+    
+    # Collecter les IDs de transcriptions à supprimer
+    local transcription_ids=()
+    local project_for_api_key=""
+    
+    # Si un ID spécifique est fourni
+    if [ -n "$transcription_id" ]; then
+        transcription_ids+=("$transcription_id")
+        # Récupérer le projet de cette transcription pour obtenir la clé API
+        if [ "$verbose" = "true" ]; then
+            echo -e "${BLUE}🔍 Récupération des informations de la transcription...${NC}" >&2
+        fi
+        local trans_info=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
+        if [ $? -eq 0 ]; then
+            project_for_api_key=$(echo "$trans_info" | grep -o '"project_name":"[^"]*' | cut -d'"' -f4)
+        else
+            if [ "$verbose" = "true" ]; then
+                echo -e "${RED}❌ Impossible de récupérer la transcription${NC}" >&2
+            else
+                echo "{\"error\": \"Impossible de récupérer la transcription: ${transcription_id}\"}" >&2
+            fi
+            exit 1
+        fi
+    else
+        # Lister les transcriptions selon les critères
+        if [ "$verbose" = "true" ]; then
+            echo -e "${BLUE}🔍 Recherche des transcriptions à supprimer...${NC}" >&2
+        fi
+        
+        # Construire l'URL de liste avec les filtres
+        # Note: L'API limite limit à 100 maximum
+        local list_url="${API_URL}/api/user/transcriptions?limit=100"
+        if [ -n "$project_name" ]; then
+            list_url="${list_url}&project=${project_name}"
+        fi
+        
+        # Récupérer toutes les transcriptions (avec pagination si nécessaire)
+        local page=1
+        
+        while true; do
+            local page_url="${list_url}&page=${page}"
+            local response=$(curl -s -X GET "$page_url" \
+                -H "Authorization: Bearer ${token}")
+            
+            # Vérifier si la réponse contient une erreur
+            if echo "$response" | grep -q '"detail"'; then
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${RED}❌ Erreur API:${NC}" >&2
+                    echo "$response" | jq '.' >&2 2>/dev/null || echo "$response" >&2
+                else
+                    echo "$response" >&2
+                fi
+                exit 1
+            fi
+            
+            # Vérifier si la réponse est un tableau JSON valide
+            if ! echo "$response" | grep -q '^\['; then
+                break
+            fi
+            
+            # Vérifier si le tableau est vide
+            if command -v jq &> /dev/null; then
+                local array_length=$(echo "$response" | jq 'length' 2>/dev/null || echo "0")
+                if [ "$array_length" -eq 0 ]; then
+                    break
+                fi
+            fi
+            
+            # Extraire les IDs et les dates des transcriptions
+            # Utiliser jq si disponible pour parser le JSON, sinon utiliser grep
+            if command -v jq &> /dev/null; then
+                # Avec jq, on peut extraire les IDs et les dates facilement
+                local page_data=$(echo "$response" | jq -r '.[] | "\(.id)|\(.created_at)"')
+                
+                if [ -z "$page_data" ]; then
+                    break
+                fi
+                
+                # Convertir la date de référence en timestamp si nécessaire
+                local date_timestamp=""
+                if [ -n "$date_from" ]; then
+                    date_timestamp=$(date -d "$date_from" +%s 2>/dev/null || date -j -f "%Y-%m-%d" "$date_from" +%s 2>/dev/null || echo "")
+                    if [ -z "$date_timestamp" ]; then
+                        # Essayer avec format ISO
+                        date_timestamp=$(date -d "$date_from" +%s 2>/dev/null || echo "")
+                    fi
+                    if [ -z "$date_timestamp" ]; then
+                        if [ "$verbose" = "true" ]; then
+                            echo -e "${RED}❌ Format de date invalide: $date_from${NC}" >&2
+                        else
+                            echo "{\"error\": \"Format de date invalide: $date_from\"}" >&2
+                        fi
+                        exit 1
+                    fi
+                fi
+                
+                # Traiter chaque transcription
+                while IFS='|' read -r tid created_at; do
+                    if [ -n "$tid" ]; then
+                        # Filtrer par date si nécessaire
+                        if [ -n "$date_from" ] && [ -n "$date_timestamp" ]; then
+                            local trans_timestamp=$(date -d "$created_at" +%s 2>/dev/null || echo "")
+                            if [ -n "$trans_timestamp" ] && [ "$trans_timestamp" -ge "$date_timestamp" ]; then
+                                transcription_ids+=("$tid")
+                            fi
+                        else
+                            transcription_ids+=("$tid")
+                        fi
+                    fi
+                done <<< "$page_data"
+            else
+                # Sans jq, utiliser grep (moins précis mais fonctionne)
+                local page_ids=$(echo "$response" | grep -o '"id":"[^"]*' | cut -d'"' -f4)
+                
+                if [ -z "$page_ids" ]; then
+                    break
+                fi
+                
+                # Si pas de filtre de date, ajouter tous les IDs
+                if [ -z "$date_from" ]; then
+                    for tid in $page_ids; do
+                        transcription_ids+=("$tid")
+                    done
+                else
+                    # Avec filtre de date, on doit récupérer chaque transcription pour vérifier la date
+                    for tid in $page_ids; do
+                        local trans_response=$(get_transcription_status "$tid" "$token" "$API_URL")
+                        if [ $? -eq 0 ]; then
+                            local created_at=$(echo "$trans_response" | grep -o '"created_at":"[^"]*' | cut -d'"' -f4)
+                            if [ -n "$created_at" ]; then
+                                local date_timestamp=$(date -d "$date_from" +%s 2>/dev/null || date -j -f "%Y-%m-%d" "$date_from" +%s 2>/dev/null || echo "")
+                                if [ -z "$date_timestamp" ]; then
+                                    date_timestamp=$(date -d "$date_from" +%s 2>/dev/null || echo "")
+                                fi
+                                if [ -n "$date_timestamp" ]; then
+                                    local trans_timestamp=$(date -d "$created_at" +%s 2>/dev/null || echo "")
+                                    if [ -n "$trans_timestamp" ] && [ "$trans_timestamp" -ge "$date_timestamp" ]; then
+                                        transcription_ids+=("$tid")
+                                    fi
+                                fi
+                            fi
+                        fi
+                    done
+                fi
+            fi
+            
+            # Vérifier s'il y a plus de pages (limite de 100 par page)
+            local count=0
+            if command -v jq &> /dev/null; then
+                count=$(echo "$response" | jq 'length' 2>/dev/null || echo "0")
+            else
+                count=$(echo "$page_ids" | wc -l)
+            fi
+            
+            if [ "$count" -lt 100 ]; then
+                break
+            fi
+            page=$((page + 1))
+        done
+        
+        # Si un projet est spécifié, l'utiliser pour la clé API
+        if [ -n "$project_name" ]; then
+            project_for_api_key="$project_name"
+        else
+            # Si pas de projet spécifié mais des transcriptions trouvées, utiliser le projet de la première
+            if [ ${#transcription_ids[@]} -gt 0 ]; then
+                local first_id="${transcription_ids[0]}"
+                local first_trans=$(get_transcription_status "$first_id" "$token" "$API_URL")
+                if [ $? -eq 0 ]; then
+                    project_for_api_key=$(echo "$first_trans" | grep -o '"project_name":"[^"]*' | cut -d'"' -f4)
+                fi
+            fi
+        fi
+    fi
+    
+    # Récupérer la clé interne (nécessaire pour l'endpoint DELETE)
+    # La clé interne est une configuration serveur, elle doit être fournie dans ~/.vocalyx_config
+    # Elle correspond à INTERNAL_API_KEY dans docker-compose.yml ou config.ini
+    local internal_key="${INTERNAL_API_KEY:-${VOCALYX_INTERNAL_KEY:-}}"
+    
+    if [ -z "$internal_key" ]; then
+        if [ "$verbose" = "true" ]; then
+            echo -e "${RED}❌ Clé interne requise pour la suppression${NC}" >&2
+            echo -e "${YELLOW}   L'endpoint DELETE nécessite X-Internal-Key${NC}" >&2
+            echo -e "${YELLOW}   Définissez INTERNAL_API_KEY ou VOCALYX_INTERNAL_KEY dans ~/.vocalyx_config${NC}" >&2
+            echo -e "${YELLOW}   Exemple: INTERNAL_API_KEY=secret_key_pour_comms_internes_123456${NC}" >&2
+        else
+            echo "{\"error\": \"Clé interne requise pour la suppression. Définissez INTERNAL_API_KEY ou VOCALYX_INTERNAL_KEY dans votre configuration\"}" >&2
+        fi
+        exit 1
+    fi
+    
+    if [ "$verbose" = "true" ]; then
+        echo -e "${GREEN}✓ Clé interne trouvée${NC}" >&2
+    fi
+    
+    # Afficher le nombre de transcriptions à supprimer
+    local count=${#transcription_ids[@]}
+    
+    if [ "$count" -eq 0 ]; then
+        if [ "$verbose" = "true" ]; then
+            echo -e "${YELLOW}ℹ️  Aucune transcription trouvée à supprimer${NC}" >&2
+        else
+            echo "{\"count\": 0, \"message\": \"Aucune transcription trouvée à supprimer\"}"
+        fi
+        exit 0
+    fi
+    
+    if [ "$verbose" = "true" ]; then
+        echo -e "${BLUE}📋 ${count} transcription(s) trouvée(s)${NC}" >&2
+    fi
+    
+    # Mode dry-run : afficher sans supprimer
+    if [ "$dry_run" = "true" ]; then
+        if [ "$verbose" = "true" ]; then
+            echo -e "${YELLOW}🔍 Mode dry-run : affichage des transcriptions qui seraient supprimées${NC}" >&2
+        fi
+        
+        local result_json="{\"dry_run\": true, \"count\": ${count}, \"transcription_ids\": ["
+        local first=true
+        for tid in "${transcription_ids[@]}"; do
+            if [ "$first" = "false" ]; then
+                result_json="${result_json}, "
+            fi
+            result_json="${result_json}\"${tid}\""
+            first=false
+        done
+        result_json="${result_json}]}"
+        
+        if command -v jq &> /dev/null; then
+            echo "$result_json" | jq '.'
+        else
+            echo "$result_json"
+        fi
+        
+        if [ "$verbose" = "true" ]; then
+            echo "" >&2
+            echo "IDs des transcriptions qui seraient supprimées:" >&2
+            for tid in "${transcription_ids[@]}"; do
+                echo "  - $tid" >&2
+            done
+        fi
+        exit 0
+    fi
+    
+    # Supprimer les transcriptions
+    if [ "$verbose" = "true" ]; then
+        echo -e "${BLUE}🗑️  Suppression de ${count} transcription(s)...${NC}" >&2
+    fi
+    
+    local deleted_count=0
+    local failed_count=0
+    local deleted_ids=()
+    local failed_ids=()
+    
+    for tid in "${transcription_ids[@]}"; do
+        # Utiliser la clé interne (l'endpoint DELETE nécessite X-Internal-Key)
+        local delete_response
+        delete_response=$(curl -s -X DELETE "${API_URL}/api/transcriptions/${tid}" \
+            -H "X-Internal-Key: ${internal_key}")
+        
+        # Vérifier si la suppression a réussi
+        if echo "$delete_response" | grep -q '"status":"deleted"'; then
+            deleted_count=$((deleted_count + 1))
+            deleted_ids+=("$tid")
+            if [ "$verbose" = "true" ]; then
+                echo -e "${GREEN}✓ Supprimé: ${tid}${NC}" >&2
+            fi
+        else
+            failed_count=$((failed_count + 1))
+            failed_ids+=("$tid")
+            if [ "$verbose" = "true" ]; then
+                echo -e "${RED}❌ Échec: ${tid}${NC}" >&2
+                echo "$delete_response" >&2
+            fi
+        fi
+    done
+    
+    # Afficher le résultat
+    local result_json="{\"deleted\": ${deleted_count}, \"failed\": ${failed_count}, \"total\": ${count}}"
+    
+    if command -v jq &> /dev/null; then
+        echo "$result_json" | jq '.'
+    else
+        echo "$result_json"
+    fi
+    
+    if [ "$verbose" = "true" ]; then
+        echo "" >&2
+        echo -e "${GREEN}✓ ${deleted_count} transcription(s) supprimée(s)${NC}" >&2
+        if [ "$failed_count" -gt 0 ]; then
+            echo -e "${RED}❌ ${failed_count} échec(s)${NC}" >&2
+        fi
+    fi
+    
+    if [ "$failed_count" -gt 0 ]; then
+        exit 1
+    fi
+}
+
 # Fonction principale
 main() {
     # La configuration est déjà chargée au début du script
@@ -1233,6 +1749,9 @@ main() {
             ;;
         enrich)
             action_enrich "$@"
+            ;;
+        purge)
+            action_purge "$@"
             ;;
         *)
             echo -e "${RED}❌ Action inconnue: $action${NC}" >&2
