@@ -1,60 +1,60 @@
 #!/bin/bash
 
-# CLI Vocalyx - Outil en ligne de commande pour Vocalyx
-# Usage: ./vocalyx_cli --action=transcribe <fichier_audio> <nom_projet> [options]
+# CLI Vocalyx - Command line tool for Vocalyx
+# Usage: ./vocalyx_cli --action=transcribe <audio_file> <project_name> [options]
 
 set -e
 
-# Chemin du fichier de configuration
+# Configuration file path
 CONFIG_FILE="${HOME}/.vocalyx_config"
 
-# Charger la configuration depuis le fichier si elle existe
+# Load configuration from file if it exists
 if [ -f "$CONFIG_FILE" ]; then
     source "$CONFIG_FILE"
 fi
 
-# Configuration par défaut (après chargement du fichier de config)
+# Default configuration (after loading config file)
 API_URL="${VOCALYX_API_URL:-http://localhost:8000}"
 USERNAME="${VOCALYX_USERNAME:-admin}"
 PASSWORD="${VOCALYX_PASSWORD:-}"
 
-# Couleurs pour les messages
+# Colors for messages
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Fonction d'aide générale
+# General help function
 show_help() {
     cat << EOF
 Usage: $0 --action=<action> [arguments] [options]
 
-Actions disponibles:
-  transcribe    Créer une transcription audio
-  status        Récupérer le statut et le résultat d'une transcription
-  enrich        Déclencher l'enrichissement d'une transcription
-  purge         Supprimer des transcriptions selon des critères
+Available actions:
+  transcribe    Create an audio transcription
+  status        Get status and result of a transcription
+  enrich        Trigger enrichment of a transcription
+  purge         Delete transcriptions based on criteria
 
-Options globales:
-  -u, --username USERNAME    Nom d'utilisateur (défaut: admin ou depuis config)
-  -p, --password PASSWORD    Mot de passe (ou depuis config)
-  -a, --api-url URL          URL de l'API (défaut: http://localhost:8000)
-  -h, --help                 Afficher cette aide
+Global options:
+  -u, --username USERNAME    Username (default: admin or from config)
+  -p, --password PASSWORD    Password (or from config)
+  -a, --api-url URL          API URL (default: http://localhost:8000)
+  -h, --help                 Show this help
 
-Variables d'environnement:
-  VOCALYX_API_URL            URL de l'API Vocalyx
-  VOCALYX_USERNAME           Nom d'utilisateur
-  VOCALYX_PASSWORD            Mot de passe
-  VOCALYX_PROJECT_API_KEY    Clé API du projet (si fournie, skip l'authentification)
+Environment variables:
+  VOCALYX_API_URL            Vocalyx API URL
+  VOCALYX_USERNAME           Username
+  VOCALYX_PASSWORD           Password
+  VOCALYX_PROJECT_API_KEY    Project API Key (if provided, skips authentication)
 
 Configuration:
-  Le script peut lire les credentials depuis ~/.vocalyx_config:
+  The script can read credentials from ~/.vocalyx_config:
     VOCALYX_USERNAME=admin
-    VOCALYX_PASSWORD=mon_mot_de_passe
+    VOCALYX_PASSWORD=my_password
     VOCALYX_API_URL=http://localhost:8000
 
-Pour l'aide spécifique à une action:
+For specific action help:
   $0 --action=transcribe --help
   $0 --action=status --help
   $0 --action=enrich --help
@@ -62,36 +62,36 @@ Pour l'aide spécifique à une action:
 EOF
 }
 
-# Fonction d'aide pour l'action transcribe
+# Help function for action transcribe
 show_transcribe_help() {
     cat << EOF
 Action: transcribe
 
-Créer une transcription audio sur Vocalyx.
+Create an audio transcription on Vocalyx.
 
-Usage: $0 --action=transcribe -f <fichier_audio> -P <nom_projet> [options]
+Usage: $0 --action=transcribe -f <audio_file> -P <project_name> [options]
 
-Arguments requis:
-  -f, --file FILE            Chemin vers le fichier audio à transcrire
-  -P, --project PROJECT      Nom du projet Vocalyx
+Required arguments:
+  -f, --file FILE            Path to audio file to transcribe
+  -P, --project PROJECT      Vocalyx project name
 
-Options spécifiques à transcribe:
-  -m, --model MODEL          Modèle Whisper (tiny|base|small|medium|large-v3-turbo, défaut: small)
-  --no-vad                   Désactiver VAD (Voice Activity Detection)
-  --diarization              Activer la diarisation des locuteurs
-  --enrichment               Activer l'enrichissement automatique après la transcription (prompts par défaut)
-  --llm-model MODEL          Modèle LLM pour l'enrichissement (qwen2.5-7b-instruct|mistral-7b-instruct|phi-3-mini)
-  --wait                     Attendre la fin de la transcription (et de l'enrichissement si activé) et afficher le résultat (mode synchrone)
-  -v, --verbose              Afficher les messages détaillés (par défaut: JSON uniquement)
+Transcribe specific options:
+  -m, --model MODEL          Whisper model (tiny|base|small|medium|large-v3-turbo, default: small)
+  --no-vad                   Disable VAD (Voice Activity Detection)
+  --diarization              Enable speaker diarization
+  --enrichment               Enable automatic enrichment after transcription (default prompts)
+  --llm-model MODEL          LLM model for enrichment (qwen2.5-7b-instruct|mistral-7b-instruct|phi-3-mini)
+  --wait                     Wait for transcription completion (and enrichment if enabled) and show result (synchronous mode)
+  -v, --verbose              Show detailed messages (default: JSON only)
 
-Options globales:
-  -u, --username USERNAME    Nom d'utilisateur (défaut: admin ou depuis config)
-  -p, --password PASSWORD    Mot de passe (ou depuis config)
-  -a, --api-url URL          URL de l'API (défaut: http://localhost:8000)
+Global options:
+  -u, --username USERNAME    Username (default: admin or from config)
+  -p, --password PASSWORD    Password (or from config)
+  -a, --api-url URL          API URL (default: http://localhost:8000)
 
-Exemples:
+Examples:
   $0 --action=transcribe -f audio.wav -P ISICOMTECH
-  $0 --action=transcribe --file audio.mp3 --project MON_PROJET --model medium --diarization
+  $0 --action=transcribe --file audio.mp3 --project MY_PROJECT --model medium --diarization
   $0 --action=transcribe -f audio.wav -P ISICOMTECH --no-vad
   $0 --action=transcribe -f audio.wav -P ISICOMTECH --wait
   $0 --action=transcribe -f audio.wav -P ISICOMTECH --enrichment --wait
@@ -99,57 +99,57 @@ Exemples:
 EOF
 }
 
-# Fonction d'aide pour l'action status
+# Help function for action status
 show_status_help() {
     cat << EOF
 Action: status
 
-Récupérer le statut et le résultat d'une transcription.
+Get status and result of a transcription.
 
 Usage: $0 --action=status -tid <transcription_id> [options]
 
-Arguments requis:
-  -tid, --transcription-id ID    ID de la transcription à récupérer
+Required arguments:
+  -tid, --transcription-id ID    ID of the transcription to retrieve
 
-Options spécifiques à status:
-  -v, --verbose              Afficher les messages détaillés (par défaut: JSON uniquement)
+Status specific options:
+  -v, --verbose              Show detailed messages (default: JSON only)
 
-Options globales:
-  -u, --username USERNAME    Nom d'utilisateur (défaut: admin ou depuis config)
-  -p, --password PASSWORD    Mot de passe (ou depuis config)
-  -a, --api-url URL          URL de l'API (défaut: http://localhost:8000)
+Global options:
+  -u, --username USERNAME    Username (default: admin or from config)
+  -p, --password PASSWORD    Password (or from config)
+  -a, --api-url URL          API URL (default: http://localhost:8000)
 
-Exemples:
+Examples:
   $0 --action=status -tid abc123-def456-ghi789
   $0 --action=status --transcription-id abc123-def456-ghi789
 EOF
 }
 
-# Fonction d'aide pour l'action enrich
+# Help function for action enrich
 show_enrich_help() {
     cat << EOF
 Action: enrich
 
-Déclencher l'enrichissement d'une transcription existante.
+Trigger enrichment of an existing transcription.
 
 Usage: $0 --action=enrich -tid <transcription_id> [options]
 
-Arguments requis:
-  -tid, --transcription-id ID    ID de la transcription à enrichir
+Required arguments:
+  -tid, --transcription-id ID    ID of the transcription to enrich
 
-Options spécifiques à enrich:
-  -m, --llm-model MODEL         Modèle LLM (qwen2.5-7b-instruct|mistral-7b-instruct|phi-3-mini)
-  --text-correction              Activer la correction du texte (orthographe, grammaire)
-  --prompts-file FILE           Fichier JSON contenant les prompts personnalisés
-  --wait                         Attendre la fin de l'enrichissement et afficher le résultat (mode synchrone)
-  -v, --verbose                 Afficher les messages détaillés (par défaut: JSON uniquement)
+Enrich specific options:
+  -m, --llm-model MODEL         LLM Model (qwen2.5-7b-instruct|mistral-7b-instruct|phi-3-mini)
+  --text-correction              Enable text correction (spelling, grammar)
+  --prompts-file FILE           JSON file containing custom prompts
+  --wait                         Wait for enrichment completion and show result (synchronous mode)
+  -v, --verbose                 Show detailed messages (default: JSON only)
 
-Options globales:
-  -u, --username USERNAME    Nom d'utilisateur (défaut: admin ou depuis config)
-  -p, --password PASSWORD    Mot de passe (ou depuis config)
-  -a, --api-url URL          URL de l'API (défaut: http://localhost:8000)
+Global options:
+  -u, --username USERNAME    Username (default: admin or from config)
+  -p, --password PASSWORD    Password (or from config)
+  -a, --api-url URL          API URL (default: http://localhost:8000)
 
-Exemples:
+Examples:
   $0 --action=enrich -tid abc123-def456-ghi789
   $0 --action=enrich --transcription-id abc123 --llm-model qwen2.5-7b-instruct --text-correction
   $0 --action=enrich -tid abc123 -m phi-3-mini --prompts-file prompts.json
@@ -157,28 +157,28 @@ Exemples:
 EOF
 }
 
-# Fonction d'aide pour l'action purge
+# Help function for action purge
 show_purge_help() {
     cat << EOF
 Action: purge
 
-Supprimer des transcriptions selon des critères (fichiers audio inclus).
+Delete transcriptions based on criteria (audio files included).
 
 Usage: $0 --action=purge [options]
 
-Options (au moins une requise):
-  -tid, --transcription-id ID    ID de la transcription à supprimer
-  -P, --project PROJECT          Supprimer toutes les transcriptions d'un projet
-  -d, --date DATE                Supprimer les transcriptions depuis cette date (format: YYYY-MM-DD ou YYYY-MM-DDTHH:MM:SS)
-  --dry-run                      Afficher les transcriptions qui seraient supprimées sans les supprimer
-  -v, --verbose                  Afficher les messages détaillés (par défaut: JSON uniquement)
+Options (at least one required):
+  -tid, --transcription-id ID    ID of the transcription to delete
+  -P, --project PROJECT          Delete all transcriptions of a project
+  -d, --date DATE                Delete transcriptions from this date (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+  --dry-run                      Show transcriptions that would be deleted without deleting them
+  -v, --verbose                  Show detailed messages (default: JSON only)
 
-Options globales:
-  -u, --username USERNAME    Nom d'utilisateur (défaut: admin ou depuis config)
-  -p, --password PASSWORD    Mot de passe (ou depuis config)
-  -a, --api-url URL          URL de l'API (défaut: http://localhost:8000)
+Global options:
+  -u, --username USERNAME    Username (default: admin or from config)
+  -p, --password PASSWORD    Password (or from config)
+  -a, --api-url URL          API URL (default: http://localhost:8000)
 
-Exemples:
+Examples:
   $0 --action=purge -tid abc123-def456-ghi789
   $0 --action=purge -P ISICOMTECH
   $0 --action=purge -d 2024-01-01
@@ -187,22 +187,22 @@ Exemples:
 EOF
 }
 
-# Charger la configuration depuis le fichier (fonction pour recharger si nécessaire)
+# Load configuration from file (function to reload if necessary)
 load_config() {
     if [ -f "$CONFIG_FILE" ]; then
         source "$CONFIG_FILE"
-        # Réinitialiser les variables après rechargement
+        # Reset variables after reload
         API_URL="${VOCALYX_API_URL:-${API_URL:-http://localhost:8000}}"
         USERNAME="${VOCALYX_USERNAME:-${USERNAME:-admin}}"
         PASSWORD="${VOCALYX_PASSWORD:-${PASSWORD:-}}"
-        # La clé interne peut être définie via INTERNAL_API_KEY ou VOCALYX_INTERNAL_KEY
-        # Elle est exportée pour être accessible dans les fonctions
+        # Internal key can be defined via INTERNAL_API_KEY or VOCALYX_INTERNAL_KEY
+        # It is exported to be accessible in functions
         export INTERNAL_API_KEY="${INTERNAL_API_KEY:-${VOCALYX_INTERNAL_KEY:-}}"
         echo -e "${BLUE}✓ Configuration chargée depuis $CONFIG_FILE${NC}" >&2
     fi
 }
 
-# Récupérer la clé API du projet via JWT
+# Helper function to get project API key via JWT
 get_project_api_key() {
     local username=$1
     local password=$2
@@ -210,7 +210,7 @@ get_project_api_key() {
     local project_name=$4
     local verbose=${5:-false}
     
-    # Obtenir le token JWT
+    # Get JWT token
     if [ "$verbose" = "true" ]; then
         echo -e "${BLUE}🔐 Authentification...${NC}" >&2
     fi
@@ -241,14 +241,14 @@ get_project_api_key() {
         echo -e "${GREEN}✓ Authentification réussie${NC}" >&2
     fi
     
-    # Récupérer les projets avec leurs clés API
+    # Get projects with their API keys
     if [ "$verbose" = "true" ]; then
         echo -e "${BLUE}🔍 Récupération de la clé API du projet '${project_name}'...${NC}" >&2
     fi
     local projects_response=$(curl -s -X GET "${api_url}/api/user/projects" \
         -H "Authorization: Bearer ${token}")
     
-    # Extraire la clé API du projet
+    # Extract project API key
     local api_key=$(echo "$projects_response" | grep -o "\"name\":\"${project_name}\"[^}]*\"api_key\":\"[^\"]*" | grep -o '"api_key":"[^"]*' | cut -d'"' -f4)
     
     if [ -z "$api_key" ]; then
@@ -265,14 +265,14 @@ get_project_api_key() {
     echo "$api_key"
 }
 
-# Récupérer la clé API du projet admin (utilisée comme clé interne pour DELETE)
+# Get admin project API key (used as internal key for DELETE)
 get_admin_api_key() {
     local username=$1
     local password=$2
     local api_url=$3
     local verbose=${4:-false}
     
-    # Obtenir le token JWT
+    # Get JWT token
     if [ "$verbose" = "true" ]; then
         echo -e "${BLUE}🔐 Authentification...${NC}" >&2
     fi
@@ -303,14 +303,14 @@ get_admin_api_key() {
         echo -e "${GREEN}✓ Authentification réussie${NC}" >&2
     fi
     
-    # Récupérer la clé API du projet admin
+    # Get admin project API key
     if [ "$verbose" = "true" ]; then
         echo -e "${BLUE}🔑 Récupération de la clé API du projet admin...${NC}" >&2
     fi
     local admin_response=$(curl -s -X GET "${api_url}/api/admin/admin-api-key" \
         -H "Authorization: Bearer ${token}")
     
-    # Extraire la clé API du projet admin
+    # Extract admin project API key
     local admin_api_key=$(echo "$admin_response" | grep -o '"api_key":"[^"]*' | cut -d'"' -f4)
     
     if [ -z "$admin_api_key" ]; then
@@ -326,7 +326,7 @@ get_admin_api_key() {
     echo "$admin_api_key"
 }
 
-# Fonction helper pour récupérer le statut d'une transcription avec token JWT
+# Helper function to get transcription status with JWT token
 get_transcription_status() {
     local transcription_id=$1
     local token=$2
@@ -343,9 +343,335 @@ get_transcription_status() {
     fi
 }
 
+# Process a single file (transcription + optional enrichment)
+# Returns 0 on success, 1 on error
+process_single_file() {
+    local audio_file="$1"
+    local project_name="$2"
+    local whisper_model="$3"
+    local use_vad="$4"
+    local diarization="$5"
+    local enrichment="$6"
+    local llm_model="$7"
+    local wait_for_completion="$8"
+    local verbose="$9"
+    local api_key="${10}"
+    local password="${11}"  # Pass the global PASSWORD variable
+    
+    # Check that file exists
+    if [ ! -f "$audio_file" ]; then
+        if [ "$verbose" = "true" ]; then
+            echo -e "${RED}❌ Audio file not found: $audio_file${NC}" >&2
+        else
+            echo "{\"error\": \"Audio file not found: $audio_file\"}" >&2
+        fi
+        return 1
+    fi
+
+    # Automatic MP3 -> WAV conversion (8kHz a-law) via sox
+    local tmp_wav=""
+    if [[ "${audio_file,,}" == *.mp3 ]]; then
+        if ! command -v sox &> /dev/null; then
+            if [ "$verbose" = "true" ]; then
+                echo -e "${RED}❌ MP3 file detected but 'sox' is not installed.${NC}" >&2
+                echo -e "${YELLOW}Please install sox: sudo apt install sox${NC}" >&2
+            else
+                echo "{\"error\": \"MP3 file detected but 'sox' is not installed\"}" >&2
+            fi
+            return 1
+        fi
+
+        if [ "$verbose" = "true" ]; then
+            echo -e "${BLUE}🎵 Converting MP3 -> WAV (8000Hz a-law) in progress...${NC}" >&2
+        fi
+
+        tmp_wav=$(mktemp --suffix=.wav)
+        if ! sox "$audio_file" -r 8000 -e a-law "$tmp_wav"; then
+             if [ "$verbose" = "true" ]; then
+                echo -e "${RED}❌ Error during sox conversion.${NC}" >&2
+            else
+                echo "{\"error\": \"Error during sox conversion\"}" >&2
+            fi
+            rm -f "$tmp_wav"
+            return 1
+        fi
+
+        # Use temporary file
+        audio_file="$tmp_wav"
+    fi
+    
+    # Create transcription
+    if [ "$verbose" = "true" ]; then
+        echo -e "${BLUE}📤 Sending audio file...${NC}" >&2
+        echo -e "   File: $audio_file" >&2
+        echo -e "   Project: $project_name" >&2
+        echo -e "   Model: $whisper_model" >&2
+        if [ "$enrichment" = "true" ]; then
+            echo -e "   Enrichment: enabled" >&2
+            if [ -n "$llm_model" ]; then
+                echo -e "   LLM Model: $llm_model" >&2
+            fi
+        fi
+    fi
+    
+    # Build curl request with parameters
+    local response
+    if [ -n "$llm_model" ]; then
+        response=$(curl -s -X POST "${API_URL}/api/transcriptions" \
+            -H "X-API-Key: ${api_key}" \
+            -F "file=@${audio_file}" \
+            -F "project_name=${project_name}" \
+            -F "whisper_model=${whisper_model}" \
+            -F "use_vad=${use_vad}" \
+            -F "diarization=${diarization}" \
+            -F "enrichment=${enrichment}" \
+            -F "llm_model=${llm_model}")
+    else
+        response=$(curl -s -X POST "${API_URL}/api/transcriptions" \
+            -H "X-API-Key: ${api_key}" \
+            -F "file=@${audio_file}" \
+            -F "project_name=${project_name}" \
+            -F "whisper_model=${whisper_model}" \
+            -F "use_vad=${use_vad}" \
+            -F "diarization=${diarization}" \
+            -F "enrichment=${enrichment}")
+    fi
+    
+    # Check response
+    if echo "$response" | grep -q '"id"'; then
+        local transcription_id=$(echo "$response" | grep -o '"id":"[^"]*' | cut -d'"' -f4)
+        local initial_status=$(echo "$response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
+        
+        # If --wait is not enabled, print JSON and return
+        if [ "$wait_for_completion" != "true" ]; then
+            # Always print JSON
+            if command -v jq &> /dev/null; then
+                echo "$response" | jq '.'
+            else
+                echo "$response"
+            fi
+            
+            # Show verbose messages if requested
+            if [ "$verbose" = "true" ]; then
+                echo "" >&2
+                echo -e "${GREEN}✓ Transcription created successfully!${NC}" >&2
+                echo "Transcription ID: $transcription_id" >&2
+                echo "Status: $initial_status" >&2
+                echo "" >&2
+                echo "To follow progress:" >&2
+                echo "  $0 --action=status -tid ${transcription_id}" >&2
+                echo "" >&2
+                echo "Or visit the dashboard:" >&2
+                echo "  ${API_URL%:8000}:8080" >&2
+            fi
+            
+            # Cleanup temporary wav if exists
+            if [ -n "$tmp_wav" ] && [ -f "$tmp_wav" ]; then
+                rm -f "$tmp_wav"
+            fi
+            return 0
+        else
+            # --wait mode: wait for transcription completion
+            if [ "$verbose" = "true" ]; then
+                echo -e "${BLUE}⏳ Waiting for transcription completion...${NC}" >&2
+                echo "ID: $transcription_id" >&2
+                echo "Initial status: $initial_status" >&2
+            fi
+            
+            # Get JWT token for polling
+            local token_response=$(curl -s -X POST "${API_URL}/api/auth/token" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                -d "username=${USERNAME}&password=${password}")
+            
+            if ! echo "$token_response" | grep -q "access_token"; then
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${RED}❌ Authentication error for polling${NC}" >&2
+                    echo "$token_response" >&2
+                else
+                    echo "$token_response" >&2
+                fi
+                if [ -n "$tmp_wav" ] && [ -f "$tmp_wav" ]; then rm -f "$tmp_wav"; fi
+                return 1
+            fi
+            
+            local token=$(echo "$token_response" | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+            
+            if [ -z "$token" ]; then
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${RED}❌ Unable to extract token${NC}" >&2
+                fi
+                if [ -n "$tmp_wav" ] && [ -f "$tmp_wav" ]; then rm -f "$tmp_wav"; fi
+                return 1
+            fi
+            
+            # Poll until status is "done" or "error"
+            local status="$initial_status"
+            local max_attempts=3600  # 1 hour max
+            local attempt=0
+            local poll_interval=2
+            
+            while [ "$status" != "done" ] && [ "$status" != "error" ] && [ $attempt -lt $max_attempts ]; do
+                sleep $poll_interval
+                attempt=$((attempt + 1))
+                
+                local status_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
+                
+                if [ $? -eq 0 ]; then
+                    status=$(echo "$status_response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
+                    
+                    if [ "$verbose" = "true" ]; then
+                        if [ $((attempt % 3)) -eq 0 ]; then
+                            echo -e "${BLUE}.${NC}" >&2
+                        fi
+                    fi
+                else
+                    if [ "$verbose" = "true" ]; then
+                        echo -e "${YELLOW}⚠️  Error retrieving status, retrying...${NC}" >&2
+                    fi
+                fi
+            done
+            
+            if [ "$verbose" = "true" ]; then
+                echo "" >&2
+            fi
+            
+            # Retrieve final result
+            local final_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
+            
+            if [ $? -ne 0 ]; then
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${RED}❌ Unable to retrieve final result${NC}" >&2
+                else
+                    echo "{\"error\": \"Unable to retrieve final result\"}" >&2
+                fi
+                if [ -n "$tmp_wav" ] && [ -f "$tmp_wav" ]; then rm -f "$tmp_wav"; fi
+                return 1
+            fi
+            
+            local final_status=$(echo "$final_response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
+            
+            # If enrichment is enabled and transcription is done, wait for enrichment
+            if [ "$enrichment" = "true" ] && [ "$final_status" = "done" ]; then
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${GREEN}✓ Transcription completed${NC}" >&2
+                    echo -e "${BLUE}⏳ Waiting for enrichment completion...${NC}" >&2
+                fi
+                
+                # Polling for enrichment
+                local enrichment_status="pending"
+                local enrichment_attempt=0
+                local enrichment_max_attempts=3600
+                
+                while [ "$enrichment_status" != "done" ] && [ "$enrichment_status" != "error" ] && [ $enrichment_attempt -lt $enrichment_max_attempts ]; do
+                    sleep $poll_interval
+                    enrichment_attempt=$((enrichment_attempt + 1))
+                    
+                    local enrichment_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
+                    
+                    if [ $? -eq 0 ]; then
+                        enrichment_status=$(echo "$enrichment_response" | grep -o '"enrichment_status":"[^"]*' | cut -d'"' -f4)
+                        
+                        if [ -z "$enrichment_status" ] || [ "$enrichment_status" = "null" ]; then
+                            enrichment_status="pending"
+                        fi
+                        
+                        if [ "$verbose" = "true" ]; then
+                            if [ $((enrichment_attempt % 3)) -eq 0 ]; then
+                                echo -e "${BLUE}.${NC}" >&2
+                            fi
+                        fi
+                    else
+                        if [ "$verbose" = "true" ]; then
+                            echo -e "${YELLOW}⚠️  Error retrieving status, retrying...${NC}" >&2
+                        fi
+                    fi
+                done
+                
+                if [ "$verbose" = "true" ]; then
+                    echo "" >&2
+                fi
+                
+                final_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
+                
+                if [ $? -ne 0 ]; then
+                    if [ "$verbose" = "true" ]; then
+                        echo -e "${RED}❌ Unable to retrieve final enrichment result${NC}" >&2
+                    else
+                        echo "{\"error\": \"Unable to retrieve final enrichment result\"}" >&2
+                    fi
+                    if [ -n "$tmp_wav" ] && [ -f "$tmp_wav" ]; then rm -f "$tmp_wav"; fi
+                    return 1
+                fi
+                
+                if [ $enrichment_attempt -ge $enrichment_max_attempts ]; then
+                    if [ "$verbose" = "true" ]; then
+                        echo -e "${YELLOW}⚠️  Timeout: enrichment is taking longer than expected${NC}" >&2
+                    else
+                        echo "{\"error\": \"Timeout: enrichment is taking longer than expected\"}" >&2
+                    fi
+                    if [ -n "$tmp_wav" ] && [ -f "$tmp_wav" ]; then rm -f "$tmp_wav"; fi
+                    return 1
+                fi
+            fi
+            
+            # Print final JSON
+            if command -v jq &> /dev/null; then
+                echo "$final_response" | jq '.'
+            else
+                echo "$final_response"
+            fi
+            
+            if [ "$verbose" = "true" ]; then
+                echo "" >&2
+                if [ "$final_status" = "done" ]; then
+                    echo -e "${GREEN}✓ Transcription completed successfully!${NC}" >&2
+                    if [ "$enrichment" = "true" ]; then
+                        local final_enrichment_status=$(echo "$final_response" | grep -o '"enrichment_status":"[^"]*' | cut -d'"' -f4)
+                        if [ "$final_enrichment_status" = "done" ]; then
+                            echo -e "${GREEN}✓ Enrichment completed successfully!${NC}" >&2
+                        elif [ "$final_enrichment_status" = "error" ]; then
+                            local enrichment_error=$(echo "$final_response" | grep -o '"enrichment_error":"[^"]*' | cut -d'"' -f4)
+                            echo -e "${YELLOW}⚠️  Enrichment failed: ${enrichment_error}${NC}" >&2
+                        fi
+                    fi
+                elif [ "$final_status" = "error" ]; then
+                    local error_msg=$(echo "$final_response" | grep -o '"error_message":"[^"]*' | cut -d'"' -f4)
+                    echo -e "${RED}❌ Transcription failed: ${error_msg}${NC}" >&2
+                fi
+            fi
+            
+            if [ $attempt -ge $max_attempts ]; then
+                if [ "$verbose" = "true" ]; then
+                    echo -e "${YELLOW}⚠️  Timeout: transcription is taking longer than expected${NC}" >&2
+                else
+                    echo "{\"error\": \"Timeout: transcription is taking longer than expected\"}" >&2
+                fi
+                if [ -n "$tmp_wav" ] && [ -f "$tmp_wav" ]; then rm -f "$tmp_wav"; fi
+                return 1
+            fi
+        fi
+        
+        # Cleanup temporary wav if exists
+        if [ -n "$tmp_wav" ] && [ -f "$tmp_wav" ]; then
+            rm -f "$tmp_wav"
+        fi
+        return 0
+    else
+        if [ "$verbose" = "true" ]; then
+            echo -e "${RED}❌ Error creating transcription${NC}" >&2
+            echo "$response" >&2
+        else
+            echo "$response" >&2
+        fi
+        if [ -n "$tmp_wav" ] && [ -f "$tmp_wav" ]; then
+            rm -f "$tmp_wav"
+        fi
+        return 1
+    fi
+}
+
 # Action transcribe
 action_transcribe() {
-    # Variables pour les options
     local audio_file=""
     local project_name=""
     local whisper_model="small"
@@ -353,10 +679,10 @@ action_transcribe() {
     local diarization="false"
     local enrichment="false"
     local llm_model=""
-    local verbose="false"
     local wait_for_completion="false"
+    local verbose="false"
     
-    # Parser les arguments spécifiques à transcribe
+    # Parse transcribe arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
             -h|--help)
@@ -413,19 +739,19 @@ action_transcribe() {
                 ;;
             -*)
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Option inconnue: $1${NC}" >&2
+                    echo -e "${RED}❌ Unknown option: $1${NC}" >&2
                 else
-                    echo "{\"error\": \"Option inconnue: $1\"}" >&2
+                    echo "{\"error\": \"Unknown option: $1\"}" >&2
                 fi
                 show_transcribe_help
                 exit 1
                 ;;
             *)
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Argument inattendu: $1${NC}" >&2
-                    echo -e "${YELLOW}Utilisez -f/--file pour le fichier et -P/--project pour le projet${NC}" >&2
+                    echo -e "${RED}❌ Unexpected argument: $1${NC}" >&2
+                    echo -e "${YELLOW}Use -f/--file for the file and -P/--project for the project${NC}" >&2
                 else
-                    echo "{\"error\": \"Argument inattendu: $1\"}" >&2
+                    echo "{\"error\": \"Unexpected argument: $1\"}" >&2
                 fi
                 show_transcribe_help
                 exit 1
@@ -433,48 +759,38 @@ action_transcribe() {
         esac
     done
     
-    # Vérifier les arguments requis
+    # Check required arguments
     if [ -z "$audio_file" ] || [ -z "$project_name" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ Arguments manquants${NC}" >&2
+            echo -e "${RED}❌ Missing arguments${NC}" >&2
         else
-            echo "{\"error\": \"Arguments manquants: fichier audio et projet requis\"}" >&2
+            echo "{\"error\": \"Missing arguments: audio file and project required\"}" >&2
         fi
         show_transcribe_help
         exit 1
     fi
     
-    # Vérifier que le fichier existe
-    if [ ! -f "$audio_file" ]; then
-        if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ Fichier audio introuvable: $audio_file${NC}" >&2
-        else
-            echo "{\"error\": \"Fichier audio introuvable: $audio_file\"}" >&2
-        fi
-        exit 1
-    fi
-    
-    # Valider le modèle LLM si fourni
+    # Validate LLM model if provided
     if [ -n "$llm_model" ]; then
         case "$llm_model" in
             qwen2.5-7b-instruct|mistral-7b-instruct|phi-3-mini)
                 ;;
             *)
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Modèle LLM invalide: $llm_model${NC}" >&2
-                    echo -e "${YELLOW}Modèles valides: qwen2.5-7b-instruct, mistral-7b-instruct, phi-3-mini${NC}" >&2
+                    echo -e "${RED}❌ Invalid LLM model: $llm_model${NC}" >&2
+                    echo -e "${YELLOW}Valid models: qwen2.5-7b-instruct, mistral-7b-instruct, phi-3-mini${NC}" >&2
                 else
-                    echo "{\"error\": \"Modèle LLM invalide: $llm_model\"}" >&2
+                    echo "{\"error\": \"Invalid LLM model: $llm_model\"}" >&2
                 fi
                 exit 1
                 ;;
         esac
     fi
     
-    # Demander le mot de passe si non fourni
+    # Ask for password if not provided
     if [ -z "$PASSWORD" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -n "Mot de passe pour $USERNAME: "
+            echo -n "Password for $USERNAME: "
         fi
         read -s PASSWORD
         if [ "$verbose" = "true" ]; then
@@ -482,7 +798,7 @@ action_transcribe() {
         fi
     fi
     
-    # Récupérer la clé API (ou utiliser celle fournie en variable d'environnement)
+    # Get API key (or use the one provided in environment variable)
     local api_key="${VOCALYX_PROJECT_API_KEY}"
     
     if [ -z "$api_key" ]; then
@@ -492,263 +808,65 @@ action_transcribe() {
         fi
     else
         if [ "$verbose" = "true" ]; then
-            echo -e "${GREEN}✓ Utilisation de la clé API fournie${NC}" >&2
+            echo -e "${GREEN}✓ Using provided API key${NC}" >&2
         fi
     fi
     
-    # Créer la transcription
-    if [ "$verbose" = "true" ]; then
-        echo -e "${BLUE}📤 Envoi du fichier audio...${NC}" >&2
-        echo -e "   Fichier: $audio_file" >&2
-        echo -e "   Projet: $project_name" >&2
-        echo -e "   Modèle: $whisper_model" >&2
-        if [ "$enrichment" = "true" ]; then
-            echo -e "   Enrichissement: activé" >&2
-            if [ -n "$llm_model" ]; then
-                echo -e "   Modèle LLM: $llm_model" >&2
-            fi
-        fi
-    fi
-    
-    # Construire la requête curl avec les paramètres
-    local response
-    if [ -n "$llm_model" ]; then
-        response=$(curl -s -X POST "${API_URL}/api/transcriptions" \
-            -H "X-API-Key: ${api_key}" \
-            -F "file=@${audio_file}" \
-            -F "project_name=${project_name}" \
-            -F "whisper_model=${whisper_model}" \
-            -F "use_vad=${use_vad}" \
-            -F "diarization=${diarization}" \
-            -F "enrichment=${enrichment}" \
-            -F "llm_model=${llm_model}")
-    else
-        response=$(curl -s -X POST "${API_URL}/api/transcriptions" \
-            -H "X-API-Key: ${api_key}" \
-            -F "file=@${audio_file}" \
-            -F "project_name=${project_name}" \
-            -F "whisper_model=${whisper_model}" \
-            -F "use_vad=${use_vad}" \
-            -F "diarization=${diarization}" \
-            -F "enrichment=${enrichment}")
-    fi
-    
-    # Vérifier la réponse
-    if echo "$response" | grep -q '"id"'; then
-        local transcription_id=$(echo "$response" | grep -o '"id":"[^"]*' | cut -d'"' -f4)
-        local initial_status=$(echo "$response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
-        
-        # Si --wait n'est pas activé, afficher le JSON et sortir
-        if [ "$wait_for_completion" != "true" ]; then
-            # Toujours afficher le JSON
-            if command -v jq &> /dev/null; then
-                echo "$response" | jq '.'
-            else
-                echo "$response"
-            fi
-            
-            # Afficher les messages verbeux si demandé
-            if [ "$verbose" = "true" ]; then
-                echo "" >&2
-                echo -e "${GREEN}✓ Transcription créée avec succès!${NC}" >&2
-                echo "ID de transcription: $transcription_id" >&2
-                echo "Statut: $initial_status" >&2
-                echo "" >&2
-                echo "Pour suivre la progression:" >&2
-                echo "  $0 --action=status -tid ${transcription_id}" >&2
-                echo "" >&2
-                echo "Ou visitez le dashboard:" >&2
-                echo "  ${API_URL%:8000}:8080" >&2
-            fi
-        else
-            # Mode --wait : attendre la fin de la transcription
-            if [ "$verbose" = "true" ]; then
-                echo -e "${BLUE}⏳ Attente de la fin de la transcription...${NC}" >&2
-                echo "ID: $transcription_id" >&2
-                echo "Statut initial: $initial_status" >&2
-            fi
-            
-            # Obtenir un token JWT pour le polling
-            local token_response=$(curl -s -X POST "${API_URL}/api/auth/token" \
-                -H "Content-Type: application/x-www-form-urlencoded" \
-                -d "username=${USERNAME}&password=${PASSWORD}")
-            
-            if ! echo "$token_response" | grep -q "access_token"; then
-                if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Erreur d'authentification pour le polling${NC}" >&2
-                    echo "$token_response" >&2
-                else
-                    echo "$token_response" >&2
-                fi
-                exit 1
-            fi
-            
-            local token=$(echo "$token_response" | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
-            
-            if [ -z "$token" ]; then
-                if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Impossible d'extraire le token${NC}" >&2
-                fi
-                exit 1
-            fi
-            
-            # Polling jusqu'à ce que le statut soit "done" ou "error"
-            local status="$initial_status"
-            local max_attempts=3600  # 1 heure max (1 seconde par tentative)
-            local attempt=0
-            local poll_interval=2  # 2 secondes entre les tentatives
-            
-            while [ "$status" != "done" ] && [ "$status" != "error" ] && [ $attempt -lt $max_attempts ]; do
-                sleep $poll_interval
-                attempt=$((attempt + 1))
-                
-                local status_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
-                
-                if [ $? -eq 0 ]; then
-                    status=$(echo "$status_response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
-                    
-                    if [ "$verbose" = "true" ]; then
-                        # Afficher un point de progression toutes les 5 secondes
-                        if [ $((attempt % 3)) -eq 0 ]; then
-                            echo -e "${BLUE}.${NC}" >&2
-                        fi
-                    fi
-                else
-                    if [ "$verbose" = "true" ]; then
-                        echo -e "${YELLOW}⚠️  Erreur lors de la récupération du statut, nouvelle tentative...${NC}" >&2
-                    fi
-                fi
-            done
-            
-            if [ "$verbose" = "true" ]; then
-                echo "" >&2
-            fi
-            
-            # Récupérer le résultat final de la transcription
-            local final_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
-            
-            if [ $? -ne 0 ]; then
-                if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Impossible de récupérer le résultat final${NC}" >&2
-                else
-                    echo "{\"error\": \"Impossible de récupérer le résultat final\"}" >&2
-                fi
-                exit 1
-            fi
-            
-            local final_status=$(echo "$final_response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
-            
-            # Si l'enrichissement est activé et que la transcription est terminée, attendre l'enrichissement
-            if [ "$enrichment" = "true" ] && [ "$final_status" = "done" ]; then
-                if [ "$verbose" = "true" ]; then
-                    echo -e "${GREEN}✓ Transcription terminée${NC}" >&2
-                    echo -e "${BLUE}⏳ Attente de la fin de l'enrichissement...${NC}" >&2
-                fi
-                
-                # Polling jusqu'à ce que enrichment_status soit "done" ou "error"
-                local enrichment_status="pending"
-                local enrichment_attempt=0
-                local enrichment_max_attempts=3600  # 1 heure max
-                
-                while [ "$enrichment_status" != "done" ] && [ "$enrichment_status" != "error" ] && [ $enrichment_attempt -lt $enrichment_max_attempts ]; do
-                    sleep $poll_interval
-                    enrichment_attempt=$((enrichment_attempt + 1))
-                    
-                    local enrichment_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
-                    
-                    if [ $? -eq 0 ]; then
-                        # Extraire enrichment_status depuis la réponse
-                        enrichment_status=$(echo "$enrichment_response" | grep -o '"enrichment_status":"[^"]*' | cut -d'"' -f4)
-                        
-                        # Si enrichment_status est null ou vide, c'est qu'il n'y a pas d'enrichissement
-                        if [ -z "$enrichment_status" ] || [ "$enrichment_status" = "null" ]; then
-                            enrichment_status="pending"
-                        fi
-                        
-                        if [ "$verbose" = "true" ]; then
-                            # Afficher un point de progression toutes les 5 secondes
-                            if [ $((enrichment_attempt % 3)) -eq 0 ]; then
-                                echo -e "${BLUE}.${NC}" >&2
-                            fi
-                        fi
-                    else
-                        if [ "$verbose" = "true" ]; then
-                            echo -e "${YELLOW}⚠️  Erreur lors de la récupération du statut, nouvelle tentative...${NC}" >&2
-                        fi
-                    fi
-                done
-                
-                if [ "$verbose" = "true" ]; then
-                    echo "" >&2
-                fi
-                
-                # Récupérer le résultat final avec l'enrichissement
-                final_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
-                
-                if [ $? -ne 0 ]; then
-                    if [ "$verbose" = "true" ]; then
-                        echo -e "${RED}❌ Impossible de récupérer le résultat final de l'enrichissement${NC}" >&2
-                    else
-                        echo "{\"error\": \"Impossible de récupérer le résultat final de l'enrichissement\"}" >&2
-                    fi
-                    exit 1
-                fi
-                
-                # Vérifier si on a atteint la limite de tentatives pour l'enrichissement
-                if [ $enrichment_attempt -ge $enrichment_max_attempts ]; then
-                    if [ "$verbose" = "true" ]; then
-                        echo -e "${YELLOW}⚠️  Timeout: l'enrichissement prend plus de temps que prévu${NC}" >&2
-                    else
-                        echo "{\"error\": \"Timeout: l'enrichissement prend plus de temps que prévu\"}" >&2
-                    fi
-                    exit 1
-                fi
-            fi
-            
-            # Afficher le résultat final en JSON
-            if command -v jq &> /dev/null; then
-                echo "$final_response" | jq '.'
-            else
-                echo "$final_response"
-            fi
-            
-            if [ "$verbose" = "true" ]; then
-                echo "" >&2
-                if [ "$final_status" = "done" ]; then
-                    echo -e "${GREEN}✓ Transcription terminée avec succès!${NC}" >&2
-                    if [ "$enrichment" = "true" ]; then
-                        local final_enrichment_status=$(echo "$final_response" | grep -o '"enrichment_status":"[^"]*' | cut -d'"' -f4)
-                        if [ "$final_enrichment_status" = "done" ]; then
-                            echo -e "${GREEN}✓ Enrichissement terminé avec succès!${NC}" >&2
-                        elif [ "$final_enrichment_status" = "error" ]; then
-                            local enrichment_error=$(echo "$final_response" | grep -o '"enrichment_error":"[^"]*' | cut -d'"' -f4)
-                            echo -e "${YELLOW}⚠️  Enrichissement échoué: ${enrichment_error}${NC}" >&2
-                        fi
-                    fi
-                elif [ "$final_status" = "error" ]; then
-                    local error_msg=$(echo "$final_response" | grep -o '"error_message":"[^"]*' | cut -d'"' -f4)
-                    echo -e "${RED}❌ Transcription échouée: ${error_msg}${NC}" >&2
-                fi
-            fi
-            
-            # Vérifier si on a atteint la limite de tentatives pour la transcription
-            if [ $attempt -ge $max_attempts ]; then
-                if [ "$verbose" = "true" ]; then
-                    echo -e "${YELLOW}⚠️  Timeout: la transcription prend plus de temps que prévu${NC}" >&2
-                else
-                    echo "{\"error\": \"Timeout: la transcription prend plus de temps que prévu\"}" >&2
-                fi
-                exit 1
-            fi
-        fi
-    else
+    # Check if audio_file is a directory
+    if [ -d "$audio_file" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ Erreur lors de la création de la transcription${NC}" >&2
-            echo "$response" >&2
-        else
-            echo "$response" >&2
+            echo -e "${BLUE}📂 Directory detected. Searching for .wav and .mp3 files in: $audio_file${NC}" >&2
         fi
-        exit 1
+        
+        # Find files recursively
+        local files=()
+        while IFS= read -r -d '' file; do
+            files+=("$file")
+        done < <(find "$audio_file" -type f \( -iname "*.wav" -o -iname "*.mp3" \) -print0)
+        
+        local count=${#files[@]}
+        if [ "$count" -eq 0 ]; then
+             if [ "$verbose" = "true" ]; then
+                echo -e "${YELLOW}ℹ️  No matching files found in $audio_file${NC}" >&2
+            else
+                echo "{\"error\": \"No matching files found in $audio_file\"}" >&2
+            fi
+            exit 0
+        fi
+        
+        if [ "$verbose" = "true" ]; then
+            echo -e "${BLUE}📋 Processing $count files...${NC}" >&2
+        fi
+        
+        local success_count=0
+        local failure_count=0
+        
+        for file in "${files[@]}"; do
+            if [ "$verbose" = "true" ]; then
+                echo -e "${BLUE}➡️  Processing: $file${NC}" >&2
+            fi
+            
+            if process_single_file "$file" "$project_name" "$whisper_model" "$use_vad" "$diarization" "$enrichment" "$llm_model" "$wait_for_completion" "$verbose" "$api_key" "$PASSWORD"; then
+                success_count=$((success_count + 1))
+            else
+                failure_count=$((failure_count + 1))
+            fi
+        done
+        
+        if [ "$verbose" = "true" ]; then
+            echo "" >&2
+            echo -e "${GREEN}✓ Completed: $success_count succeeded, $failure_count failed${NC}" >&2
+        else
+            echo "{\"summary\": {\"succeeded\": $success_count, \"failed\": $failure_count}}"
+        fi
+        
+        if [ $failure_count -gt 0 ]; then
+            exit 1
+        fi
+    else
+        # Single file
+        process_single_file "$audio_file" "$project_name" "$whisper_model" "$use_vad" "$diarization" "$enrichment" "$llm_model" "$wait_for_completion" "$verbose" "$api_key" "$PASSWORD"
+        exit $?
     fi
 }
 
@@ -757,7 +875,7 @@ action_status() {
     local transcription_id=""
     local verbose="false"
     
-    # Parser les arguments spécifiques à status
+    # Parse status-specific arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
             -h|--help)
@@ -786,19 +904,19 @@ action_status() {
                 ;;
             -*)
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Option inconnue: $1${NC}" >&2
+                    echo -e "${RED}❌ Unknown option: $1${NC}" >&2
                 else
-                    echo "{\"error\": \"Option inconnue: $1\"}" >&2
+                    echo "{\"error\": \"Unknown option: $1\"}" >&2
                 fi
                 show_status_help
                 exit 1
                 ;;
             *)
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Argument inattendu: $1${NC}" >&2
-                    echo -e "${YELLOW}Utilisez -tid/--transcription-id pour l'ID de la transcription${NC}" >&2
+                    echo -e "${RED}❌ Unexpected argument: $1${NC}" >&2
+                    echo -e "${YELLOW}Use -tid/--transcription-id for the transcription ID${NC}" >&2
                 else
-                    echo "{\"error\": \"Argument inattendu: $1\"}" >&2
+                    echo "{\"error\": \"Unexpected argument: $1\"}" >&2
                 fi
                 show_status_help
                 exit 1
@@ -806,21 +924,21 @@ action_status() {
         esac
     done
     
-    # Vérifier que l'ID est fourni
+    # Check that ID is provided
     if [ -z "$transcription_id" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ ID de transcription requis${NC}" >&2
+            echo -e "${RED}❌ Transcription ID required${NC}" >&2
         else
-            echo "{\"error\": \"ID de transcription requis\"}" >&2
+            echo "{\"error\": \"Transcription ID required\"}" >&2
         fi
         show_status_help
         exit 1
     fi
     
-    # Demander le mot de passe si non fourni
+    # Ask for password if not provided
     if [ -z "$PASSWORD" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -n "Mot de passe pour $USERNAME: "
+            echo -n "Password for $USERNAME: "
         fi
         read -s PASSWORD
         if [ "$verbose" = "true" ]; then
@@ -850,32 +968,32 @@ action_status() {
     
     if [ -z "$token" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ Impossible d'extraire le token${NC}" >&2
+            echo -e "${RED}❌ Unable to extract token${NC}" >&2
         fi
         exit 1
     fi
     
     if [ "$verbose" = "true" ]; then
-        echo -e "${GREEN}✓ Authentification réussie${NC}" >&2
+        echo -e "${GREEN}✓ Authentication successful${NC}" >&2
     fi
     
-    # Récupérer la transcription
+    # Retrieve transcription
     if [ "$verbose" = "true" ]; then
-        echo -e "${BLUE}📥 Récupération de la transcription '${transcription_id}'...${NC}" >&2
+        echo -e "${BLUE}📥 Retrieving transcription '${transcription_id}'...${NC}" >&2
     fi
     local response=$(curl -s -X GET "${API_URL}/api/user/transcriptions/${transcription_id}" \
         -H "Authorization: Bearer ${token}")
     
-    # Vérifier si la transcription existe
+    # Check if transcription exists
     if echo "$response" | grep -q '"id"'; then
-        # Toujours afficher le JSON
+        # Always print JSON
         if command -v jq &> /dev/null; then
             echo "$response" | jq '.'
         else
             echo "$response"
         fi
         
-        # Afficher les messages verbeux si demandé
+        # Show verbose messages if requested
         if [ "$verbose" = "true" ]; then
             local status=$(echo "$response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
             local project_name=$(echo "$response" | grep -o '"project_name":"[^"]*' | cut -d'"' -f4)
@@ -883,40 +1001,40 @@ action_status() {
             local text=$(echo "$response" | grep -o '"text":"[^"]*' | cut -d'"' -f4)
             
             echo "" >&2
-            echo -e "${GREEN}✓ Transcription trouvée${NC}" >&2
+            echo -e "${GREEN}✓ Transcription found${NC}" >&2
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
             echo "ID: $transcription_id" >&2
-            echo "Statut: $status" >&2
-            echo "Projet: $project_name" >&2
-            echo "Fichier: $(basename "$file_path")" >&2
+            echo "Status: $status" >&2
+            echo "Project: $project_name" >&2
+            echo "File: $(basename "$file_path")" >&2
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
             echo "" >&2
             
-            # Afficher le texte si disponible
+            # Print text if available
             if [ -n "$text" ] && [ "$text" != "null" ]; then
                 echo "📝 Transcription:" >&2
                 echo "$text" | sed 's/\\n/\n/g' >&2
                 echo "" >&2
             else
                 if [ "$status" = "pending" ] || [ "$status" = "processing" ]; then
-                    echo -e "${YELLOW}⏳ Transcription en cours...${NC}" >&2
+                    echo -e "${YELLOW}⏳ Transcription in progress...${NC}" >&2
                 elif [ "$status" = "error" ]; then
                     local error_msg=$(echo "$response" | grep -o '"error_message":"[^"]*' | cut -d'"' -f4)
-                    echo -e "${RED}❌ Erreur: ${error_msg}${NC}" >&2
+                    echo -e "${RED}❌ Error: ${error_msg}${NC}" >&2
                 fi
             fi
         fi
     else
-        # Vérifier si c'est une erreur 404
+        # Check if it is a 404 error
         if echo "$response" | grep -q "not found"; then
             if [ "$verbose" = "true" ]; then
-                echo -e "${RED}❌ Transcription '${transcription_id}' non trouvée${NC}" >&2
+                echo -e "${RED}❌ Transcription '${transcription_id}' not found${NC}" >&2
             else
                 echo "$response" >&2
             fi
         else
             if [ "$verbose" = "true" ]; then
-                echo -e "${RED}❌ Erreur lors de la récupération de la transcription${NC}" >&2
+                echo -e "${RED}❌ Error retrieving transcription${NC}" >&2
                 echo "$response" >&2
             else
                 echo "$response" >&2
@@ -935,7 +1053,7 @@ action_enrich() {
     local verbose="false"
     local wait_for_completion="false"
     
-    # Parser les arguments spécifiques à enrich
+    # Parse enrich-specific arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
             -h|--help)
@@ -980,19 +1098,19 @@ action_enrich() {
                 ;;
             -*)
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Option inconnue: $1${NC}" >&2
+                    echo -e "${RED}❌ Unknown option: $1${NC}" >&2
                 else
-                    echo "{\"error\": \"Option inconnue: $1\"}" >&2
+                    echo "{\"error\": \"Unknown option: $1\"}" >&2
                 fi
                 show_enrich_help
                 exit 1
                 ;;
             *)
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Argument inattendu: $1${NC}" >&2
-                    echo -e "${YELLOW}Utilisez -tid/--transcription-id pour l'ID de la transcription${NC}" >&2
+                    echo -e "${RED}❌ Unexpected argument: $1${NC}" >&2
+                    echo -e "${YELLOW}Use -tid/--transcription-id for the transcription ID${NC}" >&2
                 else
-                    echo "{\"error\": \"Argument inattendu: $1\"}" >&2
+                    echo "{\"error\": \"Unexpected argument: $1\"}" >&2
                 fi
                 show_enrich_help
                 exit 1
@@ -1000,57 +1118,57 @@ action_enrich() {
         esac
     done
     
-    # Vérifier que l'ID est fourni
+    # Check that ID is provided
     if [ -z "$transcription_id" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ ID de transcription requis${NC}" >&2
+            echo -e "${RED}❌ Transcription ID required${NC}" >&2
         else
-            echo "{\"error\": \"ID de transcription requis\"}" >&2
+            echo "{\"error\": \"Transcription ID required\"}" >&2
         fi
         show_enrich_help
         exit 1
     fi
     
-    # Valider le modèle LLM si fourni
+    # Validate LLM model if provided
     if [ -n "$llm_model" ]; then
         case "$llm_model" in
             qwen2.5-7b-instruct|mistral-7b-instruct|phi-3-mini)
                 ;;
             *)
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Modèle LLM invalide: $llm_model${NC}" >&2
-                    echo -e "${YELLOW}Modèles valides: qwen2.5-7b-instruct, mistral-7b-instruct, phi-3-mini${NC}" >&2
+                    echo -e "${RED}❌ Invalid LLM model: $llm_model${NC}" >&2
+                    echo -e "${YELLOW}Valid models: qwen2.5-7b-instruct, mistral-7b-instruct, phi-3-mini${NC}" >&2
                 else
-                    echo "{\"error\": \"Modèle LLM invalide: $llm_model\"}" >&2
+                    echo "{\"error\": \"Invalid LLM model: $llm_model\"}" >&2
                 fi
                 exit 1
                 ;;
         esac
     fi
     
-    # Lire le fichier de prompts si fourni
+    # Read prompts file if provided
     local enrichment_prompts=""
     if [ -n "$prompts_file" ]; then
         if [ ! -f "$prompts_file" ]; then
             if [ "$verbose" = "true" ]; then
-                echo -e "${RED}❌ Fichier de prompts introuvable: $prompts_file${NC}" >&2
+                echo -e "${RED}❌ Prompts file not found: $prompts_file${NC}" >&2
             else
-                echo "{\"error\": \"Fichier de prompts introuvable: $prompts_file\"}" >&2
+                echo "{\"error\": \"Prompts file not found: $prompts_file\"}" >&2
             fi
             exit 1
         fi
         
-        # Vérifier que c'est du JSON valide
+        # Check for valid JSON
         if ! command -v jq &> /dev/null; then
-            # Sans jq, on lit simplement le fichier
+            # Without jq, just read the file
             enrichment_prompts=$(cat "$prompts_file")
         else
-            # Avec jq, on valide le JSON
+            # With jq, validate JSON
             if ! jq empty "$prompts_file" 2>/dev/null; then
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Fichier de prompts invalide (JSON invalide): $prompts_file${NC}" >&2
+                    echo -e "${RED}❌ Invalid prompts file (invalid JSON): $prompts_file${NC}" >&2
                 else
-                    echo "{\"error\": \"Fichier de prompts invalide (JSON invalide): $prompts_file\"}" >&2
+                    echo "{\"error\": \"Invalid prompts file (invalid JSON): $prompts_file\"}" >&2
                 fi
                 exit 1
             fi
@@ -1058,10 +1176,10 @@ action_enrich() {
         fi
     fi
     
-    # Demander le mot de passe si non fourni
+    # Ask for password if not provided
     if [ -z "$PASSWORD" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -n "Mot de passe pour $USERNAME: "
+            echo -n "Password for $USERNAME: "
         fi
         read -s PASSWORD
         if [ "$verbose" = "true" ]; then
@@ -1069,9 +1187,9 @@ action_enrich() {
         fi
     fi
     
-    # Obtenir le token JWT
+    # Get JWT token
     if [ "$verbose" = "true" ]; then
-        echo -e "${BLUE}🔐 Authentification...${NC}" >&2
+        echo -e "${BLUE}🔐 Authenticating...${NC}" >&2
     fi
     local token_response=$(curl -s -X POST "${API_URL}/api/auth/token" \
         -H "Content-Type: application/x-www-form-urlencoded" \
@@ -1079,7 +1197,7 @@ action_enrich() {
     
     if ! echo "$token_response" | grep -q "access_token"; then
         if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ Erreur d'authentification${NC}" >&2
+            echo -e "${RED}❌ Authentication error${NC}" >&2
             echo "$token_response" >&2
         else
             echo "$token_response" >&2
@@ -1091,16 +1209,16 @@ action_enrich() {
     
     if [ -z "$token" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ Impossible d'extraire le token${NC}" >&2
+            echo -e "${RED}❌ Unable to extract token${NC}" >&2
         fi
         exit 1
     fi
     
     if [ "$verbose" = "true" ]; then
-        echo -e "${GREEN}✓ Authentification réussie${NC}" >&2
+        echo -e "${GREEN}✓ Authentication successful${NC}" >&2
     fi
     
-    # Construire le body JSON pour la requête
+    # Build JSON body for request
     local json_body="{"
     local first=true
     
@@ -1127,9 +1245,9 @@ action_enrich() {
     
     json_body="${json_body}}"
     
-    # Déclencher l'enrichissement
+    # Trigger enrichment
     if [ "$verbose" = "true" ]; then
-        echo -e "${BLUE}🚀 Déclenchement de l'enrichissement pour la transcription '${transcription_id}'...${NC}" >&2
+        echo -e "${BLUE}🚀 Triggering enrichment for transcription '${transcription_id}'...${NC}" >&2
     fi
     
     local response=$(curl -s -X POST "${API_URL}/api/user/transcriptions/${transcription_id}/re-enrich" \
@@ -1137,36 +1255,36 @@ action_enrich() {
         -H "Content-Type: application/json" \
         -d "$json_body")
     
-    # Vérifier la réponse
+    # Check response
     if echo "$response" | grep -q '"task_id"'; then
         local task_id=$(echo "$response" | grep -o '"task_id":"[^"]*' | cut -d'"' -f4)
         
-        # Si --wait n'est pas activé, afficher le JSON et sortir
+        # If --wait is not enabled, print JSON and exit
         if [ "$wait_for_completion" != "true" ]; then
-            # Toujours afficher le JSON
+            # Always print JSON
             if command -v jq &> /dev/null; then
                 echo "$response" | jq '.'
             else
                 echo "$response"
             fi
             
-            # Afficher les messages verbeux si demandé
+            # Show verbose messages if requested
             if [ "$verbose" = "true" ]; then
                 local status=$(echo "$response" | grep -o '"status":"[^"]*' | cut -d'"' -f4)
                 echo "" >&2
-                echo -e "${GREEN}✓ Enrichissement déclenché avec succès!${NC}" >&2
-                echo "ID de tâche: $task_id" >&2
-                echo "Statut: $status" >&2
+                echo -e "${GREEN}✓ Enrichment triggered successfully!${NC}" >&2
+                echo "Task ID: $task_id" >&2
+                echo "Status: $status" >&2
                 echo "" >&2
-                echo "Pour suivre la progression:" >&2
+                echo "To follow progress:" >&2
                 echo "  $0 --action=status -tid ${transcription_id}" >&2
             fi
         else
-            # Mode --wait : attendre la fin de l'enrichissement
+            # --wait mode: wait for enrichment completion
             if [ "$verbose" = "true" ]; then
-                echo -e "${BLUE}⏳ Attente de la fin de l'enrichissement...${NC}" >&2
-                echo "ID de transcription: $transcription_id" >&2
-                echo "ID de tâche: $task_id" >&2
+                echo -e "${BLUE}⏳ Waiting for enrichment completion...${NC}" >&2
+                echo "Transcription ID: $transcription_id" >&2
+                echo "Task ID: $task_id" >&2
             fi
             
             # Polling jusqu'à ce que enrichment_status soit "done" ou "error"
@@ -1182,23 +1300,23 @@ action_enrich() {
                 local status_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
                 
                 if [ $? -eq 0 ]; then
-                    # Extraire enrichment_status depuis la réponse
+                    # Extract enrichment_status from response
                     enrichment_status=$(echo "$status_response" | grep -o '"enrichment_status":"[^"]*' | cut -d'"' -f4)
                     
-                    # Si enrichment_status est null ou vide, c'est qu'il n'y a pas d'enrichissement
+                    # If enrichment_status is null or empty, enrichment is not present
                     if [ -z "$enrichment_status" ] || [ "$enrichment_status" = "null" ]; then
                         enrichment_status="pending"
                     fi
                     
                     if [ "$verbose" = "true" ]; then
-                        # Afficher un point de progression toutes les 5 secondes
+                        # Show progress dot every 5 seconds (approx, depending on attempt % 3)
                         if [ $((attempt % 3)) -eq 0 ]; then
                             echo -e "${BLUE}.${NC}" >&2
                         fi
                     fi
                 else
                     if [ "$verbose" = "true" ]; then
-                        echo -e "${YELLOW}⚠️  Erreur lors de la récupération du statut, nouvelle tentative...${NC}" >&2
+                        echo -e "${YELLOW}⚠️  Error retrieving status, retrying...${NC}" >&2
                     fi
                 fi
             done
@@ -1207,11 +1325,11 @@ action_enrich() {
                 echo "" >&2
             fi
             
-            # Récupérer le résultat final
+            # Retrieve final result
             local final_response=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
             
             if [ $? -eq 0 ]; then
-                # Afficher le résultat final en JSON
+                # Show final result in JSON
                 if command -v jq &> /dev/null; then
                     echo "$final_response" | jq '.'
                 else
@@ -1222,34 +1340,34 @@ action_enrich() {
                     local final_enrichment_status=$(echo "$final_response" | grep -o '"enrichment_status":"[^"]*' | cut -d'"' -f4)
                     echo "" >&2
                     if [ "$final_enrichment_status" = "done" ]; then
-                        echo -e "${GREEN}✓ Enrichissement terminé avec succès!${NC}" >&2
+                        echo -e "${GREEN}✓ Enrichment completed successfully!${NC}" >&2
                     elif [ "$final_enrichment_status" = "error" ]; then
                         local error_msg=$(echo "$final_response" | grep -o '"enrichment_error":"[^"]*' | cut -d'"' -f4)
-                        echo -e "${RED}❌ Enrichissement échoué: ${error_msg}${NC}" >&2
+                        echo -e "${RED}❌ Enrichment failed: ${error_msg}${NC}" >&2
                     fi
                 fi
             else
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Impossible de récupérer le résultat final${NC}" >&2
+                    echo -e "${RED}❌ Unable to retrieve final result${NC}" >&2
                 else
-                    echo "{\"error\": \"Impossible de récupérer le résultat final\"}" >&2
+                    echo "{\"error\": \"Unable to retrieve final result\"}" >&2
                 fi
                 exit 1
             fi
             
-            # Vérifier si on a atteint la limite de tentatives
+            # Check if attempts limit reached
             if [ $attempt -ge $max_attempts ]; then
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${YELLOW}⚠️  Timeout: l'enrichissement prend plus de temps que prévu${NC}" >&2
+                    echo -e "${YELLOW}⚠️  Timeout: enrichment is taking longer than expected${NC}" >&2
                 else
-                    echo "{\"error\": \"Timeout: l'enrichissement prend plus de temps que prévu\"}" >&2
+                    echo "{\"error\": \"Timeout: enrichment is taking longer than expected\"}" >&2
                 fi
                 exit 1
             fi
         fi
     else
         if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ Erreur lors du déclenchement de l'enrichissement${NC}" >&2
+            echo -e "${RED}❌ Error triggering enrichment${NC}" >&2
             echo "$response" >&2
         else
             echo "$response" >&2
@@ -1266,7 +1384,7 @@ action_purge() {
     local dry_run="false"
     local verbose="false"
     
-    # Parser les arguments spécifiques à purge
+    # Parse purge arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
             -h|--help)
@@ -1307,18 +1425,18 @@ action_purge() {
                 ;;
             -*)
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Option inconnue: $1${NC}" >&2
+                    echo -e "${RED}❌ Unknown option: $1${NC}" >&2
                 else
-                    echo "{\"error\": \"Option inconnue: $1\"}" >&2
+                    echo "{\"error\": \"Unknown option: $1\"}" >&2
                 fi
                 show_purge_help
                 exit 1
                 ;;
             *)
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Argument inattendu: $1${NC}" >&2
+                    echo -e "${RED}❌ Unexpected argument: $1${NC}" >&2
                 else
-                    echo "{\"error\": \"Argument inattendu: $1\"}" >&2
+                    echo "{\"error\": \"Unexpected argument: $1\"}" >&2
                 fi
                 show_purge_help
                 exit 1
@@ -1326,21 +1444,21 @@ action_purge() {
         esac
     done
     
-    # Vérifier qu'au moins un critère est fourni
+    # Check that at least one criterion is provided
     if [ -z "$transcription_id" ] && [ -z "$project_name" ] && [ -z "$date_from" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ Au moins un critère requis (transcription-id, project ou date)${NC}" >&2
+            echo -e "${RED}❌ At least one criterion required (transcription-id, project or date)${NC}" >&2
         else
-            echo "{\"error\": \"Au moins un critère requis (transcription-id, project ou date)\"}" >&2
+            echo "{\"error\": \"At least one criterion required (transcription-id, project or date)\"}" >&2
         fi
         show_purge_help
         exit 1
     fi
     
-    # Demander le mot de passe si non fourni
+    # Ask for password if not provided
     if [ -z "$PASSWORD" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -n "Mot de passe pour $USERNAME: "
+            echo -n "Password for $USERNAME: "
         fi
         read -s PASSWORD
         if [ "$verbose" = "true" ]; then
@@ -1348,9 +1466,9 @@ action_purge() {
         fi
     fi
     
-    # Obtenir le token JWT
+    # Get JWT token
     if [ "$verbose" = "true" ]; then
-        echo -e "${BLUE}🔐 Authentification...${NC}" >&2
+        echo -e "${BLUE}🔐 Authenticating...${NC}" >&2
     fi
     local token_response=$(curl -s -X POST "${API_URL}/api/auth/token" \
         -H "Content-Type: application/x-www-form-urlencoded" \
@@ -1358,7 +1476,7 @@ action_purge() {
     
     if ! echo "$token_response" | grep -q "access_token"; then
         if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ Erreur d'authentification${NC}" >&2
+            echo -e "${RED}❌ Authentication error${NC}" >&2
             echo "$token_response" >&2
         else
             echo "$token_response" >&2
@@ -1370,51 +1488,51 @@ action_purge() {
     
     if [ -z "$token" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ Impossible d'extraire le token${NC}" >&2
+            echo -e "${RED}❌ Unable to extract token${NC}" >&2
         fi
         exit 1
     fi
     
     if [ "$verbose" = "true" ]; then
-        echo -e "${GREEN}✓ Authentification réussie${NC}" >&2
+        echo -e "${GREEN}✓ Authentication successful${NC}" >&2
     fi
     
-    # Collecter les IDs de transcriptions à supprimer
+    # Collect IDs of transcriptions to delete
     local transcription_ids=()
     local project_for_api_key=""
     
-    # Si un ID spécifique est fourni
+    # If specific ID is provided
     if [ -n "$transcription_id" ]; then
         transcription_ids+=("$transcription_id")
-        # Récupérer le projet de cette transcription pour obtenir la clé API
+        # Retrieve project for this transcription to get API key
         if [ "$verbose" = "true" ]; then
-            echo -e "${BLUE}🔍 Récupération des informations de la transcription...${NC}" >&2
+            echo -e "${BLUE}🔍 Retrieving transcription info...${NC}" >&2
         fi
         local trans_info=$(get_transcription_status "$transcription_id" "$token" "$API_URL")
         if [ $? -eq 0 ]; then
             project_for_api_key=$(echo "$trans_info" | grep -o '"project_name":"[^"]*' | cut -d'"' -f4)
         else
             if [ "$verbose" = "true" ]; then
-                echo -e "${RED}❌ Impossible de récupérer la transcription${NC}" >&2
+                echo -e "${RED}❌ Unable to retrieve transcription${NC}" >&2
             else
-                echo "{\"error\": \"Impossible de récupérer la transcription: ${transcription_id}\"}" >&2
+                echo "{\"error\": \"Unable to retrieve transcription: ${transcription_id}\"}" >&2
             fi
             exit 1
         fi
     else
-        # Lister les transcriptions selon les critères
+        # List transcriptions based on criteria
         if [ "$verbose" = "true" ]; then
-            echo -e "${BLUE}🔍 Recherche des transcriptions à supprimer...${NC}" >&2
+            echo -e "${BLUE}🔍 Searching transcriptions to delete...${NC}" >&2
         fi
         
-        # Construire l'URL de liste avec les filtres
-        # Note: L'API limite limit à 100 maximum
+        # Build list URL with filters
+        # Note: API limits limit to 100 maximum
         local list_url="${API_URL}/api/user/transcriptions?limit=100"
         if [ -n "$project_name" ]; then
             list_url="${list_url}&project=${project_name}"
         fi
         
-        # Récupérer toutes les transcriptions (avec pagination si nécessaire)
+        # Retrieve all transcriptions (with pagination if needed)
         local page=1
         
         while true; do
@@ -1422,10 +1540,10 @@ action_purge() {
             local response=$(curl -s -X GET "$page_url" \
                 -H "Authorization: Bearer ${token}")
             
-            # Vérifier si la réponse contient une erreur
+            # Check if response contains an error
             if echo "$response" | grep -q '"detail"'; then
                 if [ "$verbose" = "true" ]; then
-                    echo -e "${RED}❌ Erreur API:${NC}" >&2
+                    echo -e "${RED}❌ API Error:${NC}" >&2
                     echo "$response" | jq '.' >&2 2>/dev/null || echo "$response" >&2
                 else
                     echo "$response" >&2
@@ -1433,12 +1551,12 @@ action_purge() {
                 exit 1
             fi
             
-            # Vérifier si la réponse est un tableau JSON valide
+            # Check if response is a valid JSON array
             if ! echo "$response" | grep -q '^\['; then
                 break
             fi
             
-            # Vérifier si le tableau est vide
+            # Check if array is empty
             if command -v jq &> /dev/null; then
                 local array_length=$(echo "$response" | jq 'length' 2>/dev/null || echo "0")
                 if [ "$array_length" -eq 0 ]; then
@@ -1446,38 +1564,38 @@ action_purge() {
                 fi
             fi
             
-            # Extraire les IDs et les dates des transcriptions
-            # Utiliser jq si disponible pour parser le JSON, sinon utiliser grep
+            # Extract IDs and dates of transcriptions
+            # Use jq if available to parse JSON, otherwise use grep
             if command -v jq &> /dev/null; then
-                # Avec jq, on peut extraire les IDs et les dates facilement
+                # With jq, we can extract IDs and dates easily
                 local page_data=$(echo "$response" | jq -r '.[] | "\(.id)|\(.created_at)"')
                 
                 if [ -z "$page_data" ]; then
                     break
                 fi
                 
-                # Convertir la date de référence en timestamp si nécessaire
+                # Convert reference date to timestamp if needed
                 local date_timestamp=""
                 if [ -n "$date_from" ]; then
                     date_timestamp=$(date -d "$date_from" +%s 2>/dev/null || date -j -f "%Y-%m-%d" "$date_from" +%s 2>/dev/null || echo "")
                     if [ -z "$date_timestamp" ]; then
-                        # Essayer avec format ISO
+                        # Try ISO format
                         date_timestamp=$(date -d "$date_from" +%s 2>/dev/null || echo "")
                     fi
                     if [ -z "$date_timestamp" ]; then
                         if [ "$verbose" = "true" ]; then
-                            echo -e "${RED}❌ Format de date invalide: $date_from${NC}" >&2
+                            echo -e "${RED}❌ Invalid date format: $date_from${NC}" >&2
                         else
-                            echo "{\"error\": \"Format de date invalide: $date_from\"}" >&2
+                            echo "{\"error\": \"Invalid date format: $date_from\"}" >&2
                         fi
                         exit 1
                     fi
                 fi
                 
-                # Traiter chaque transcription
+                # Process each transcription
                 while IFS='|' read -r tid created_at; do
                     if [ -n "$tid" ]; then
-                        # Filtrer par date si nécessaire
+                        # Filter by date if needed
                         if [ -n "$date_from" ] && [ -n "$date_timestamp" ]; then
                             local trans_timestamp=$(date -d "$created_at" +%s 2>/dev/null || echo "")
                             if [ -n "$trans_timestamp" ] && [ "$trans_timestamp" -ge "$date_timestamp" ]; then
@@ -1489,20 +1607,20 @@ action_purge() {
                     fi
                 done <<< "$page_data"
             else
-                # Sans jq, utiliser grep (moins précis mais fonctionne)
+                # Without jq, use grep (less precise but works)
                 local page_ids=$(echo "$response" | grep -o '"id":"[^"]*' | cut -d'"' -f4)
                 
                 if [ -z "$page_ids" ]; then
                     break
                 fi
                 
-                # Si pas de filtre de date, ajouter tous les IDs
+                # If no date filter, add all IDs
                 if [ -z "$date_from" ]; then
                     for tid in $page_ids; do
                         transcription_ids+=("$tid")
                     done
                 else
-                    # Avec filtre de date, on doit récupérer chaque transcription pour vérifier la date
+                    # With date filter, we must retrieve each transcription to check the date
                     for tid in $page_ids; do
                         local trans_response=$(get_transcription_status "$tid" "$token" "$API_URL")
                         if [ $? -eq 0 ]; then
@@ -1524,7 +1642,7 @@ action_purge() {
                 fi
             fi
             
-            # Vérifier s'il y a plus de pages (limite de 100 par page)
+            # Check if there are more pages (limit of 100 per page)
             local count=0
             if command -v jq &> /dev/null; then
                 count=$(echo "$response" | jq 'length' 2>/dev/null || echo "0")
@@ -1538,11 +1656,11 @@ action_purge() {
             page=$((page + 1))
         done
         
-        # Si un projet est spécifié, l'utiliser pour la clé API
+        # If a project is specified, use it for API key
         if [ -n "$project_name" ]; then
             project_for_api_key="$project_name"
         else
-            # Si pas de projet spécifié mais des transcriptions trouvées, utiliser le projet de la première
+            # If no project specified but transcriptions found, use the project of the first one
             if [ ${#transcription_ids[@]} -gt 0 ]; then
                 local first_id="${transcription_ids[0]}"
                 local first_trans=$(get_transcription_status "$first_id" "$token" "$API_URL")
@@ -1553,47 +1671,47 @@ action_purge() {
         fi
     fi
     
-    # Récupérer la clé interne (nécessaire pour l'endpoint DELETE)
-    # La clé interne est une configuration serveur, elle doit être fournie dans ~/.vocalyx_config
-    # Elle correspond à INTERNAL_API_KEY dans docker-compose.yml ou config.ini
+    # Retrieve internal key (required for DELETE endpoint)
+    # The internal key is a server config, it must be provided in ~/.vocalyx_config
+    # It corresponds to INTERNAL_API_KEY in docker-compose.yml or config.ini
     local internal_key="${INTERNAL_API_KEY:-${VOCALYX_INTERNAL_KEY:-}}"
     
     if [ -z "$internal_key" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ Clé interne requise pour la suppression${NC}" >&2
-            echo -e "${YELLOW}   L'endpoint DELETE nécessite X-Internal-Key${NC}" >&2
-            echo -e "${YELLOW}   Définissez INTERNAL_API_KEY ou VOCALYX_INTERNAL_KEY dans ~/.vocalyx_config${NC}" >&2
-            echo -e "${YELLOW}   Exemple: INTERNAL_API_KEY=secret_key_pour_comms_internes_123456${NC}" >&2
+            echo -e "${RED}❌ Internal key required for deletion${NC}" >&2
+            echo -e "${YELLOW}   DELETE endpoint requires X-Internal-Key${NC}" >&2
+            echo -e "${YELLOW}   Define INTERNAL_API_KEY or VOCALYX_INTERNAL_KEY in ~/.vocalyx_config${NC}" >&2
+            echo -e "${YELLOW}   Example: INTERNAL_API_KEY=secret_key_for_internal_comms_123456${NC}" >&2
         else
-            echo "{\"error\": \"Clé interne requise pour la suppression. Définissez INTERNAL_API_KEY ou VOCALYX_INTERNAL_KEY dans votre configuration\"}" >&2
+            echo "{\"error\": \"Internal key required for deletion. Define INTERNAL_API_KEY or VOCALYX_INTERNAL_KEY in your configuration\"}" >&2
         fi
         exit 1
     fi
     
     if [ "$verbose" = "true" ]; then
-        echo -e "${GREEN}✓ Clé interne trouvée${NC}" >&2
+        echo -e "${GREEN}✓ Internal key found${NC}" >&2
     fi
     
-    # Afficher le nombre de transcriptions à supprimer
+    # Show number of transcriptions to delete
     local count=${#transcription_ids[@]}
     
     if [ "$count" -eq 0 ]; then
         if [ "$verbose" = "true" ]; then
-            echo -e "${YELLOW}ℹ️  Aucune transcription trouvée à supprimer${NC}" >&2
+            echo -e "${YELLOW}ℹ️  No transcription found to delete${NC}" >&2
         else
-            echo "{\"count\": 0, \"message\": \"Aucune transcription trouvée à supprimer\"}"
+            echo "{\"count\": 0, \"message\": \"No transcription found to delete\"}"
         fi
         exit 0
     fi
     
     if [ "$verbose" = "true" ]; then
-        echo -e "${BLUE}📋 ${count} transcription(s) trouvée(s)${NC}" >&2
+        echo -e "${BLUE}📋 ${count} transcription(s) found${NC}" >&2
     fi
     
-    # Mode dry-run : afficher sans supprimer
+    # Dry-run mode: show without deleting
     if [ "$dry_run" = "true" ]; then
         if [ "$verbose" = "true" ]; then
-            echo -e "${YELLOW}🔍 Mode dry-run : affichage des transcriptions qui seraient supprimées${NC}" >&2
+            echo -e "${YELLOW}🔍 Dry-run mode: showing transcriptions that would be deleted${NC}" >&2
         fi
         
         local result_json="{\"dry_run\": true, \"count\": ${count}, \"transcription_ids\": ["
@@ -1615,7 +1733,7 @@ action_purge() {
         
         if [ "$verbose" = "true" ]; then
             echo "" >&2
-            echo "IDs des transcriptions qui seraient supprimées:" >&2
+            echo "IDs of transcriptions that would be deleted:" >&2
             for tid in "${transcription_ids[@]}"; do
                 echo "  - $tid" >&2
             done
@@ -1623,9 +1741,9 @@ action_purge() {
         exit 0
     fi
     
-    # Supprimer les transcriptions
+    # Delete transcriptions
     if [ "$verbose" = "true" ]; then
-        echo -e "${BLUE}🗑️  Suppression de ${count} transcription(s)...${NC}" >&2
+        echo -e "${BLUE}🗑️  Deleting ${count} transcription(s)...${NC}" >&2
     fi
     
     local deleted_count=0
@@ -1634,29 +1752,29 @@ action_purge() {
     local failed_ids=()
     
     for tid in "${transcription_ids[@]}"; do
-        # Utiliser la clé interne (l'endpoint DELETE nécessite X-Internal-Key)
+        # Use internal key (DELETE endpoint requires X-Internal-Key)
         local delete_response
         delete_response=$(curl -s -X DELETE "${API_URL}/api/transcriptions/${tid}" \
             -H "X-Internal-Key: ${internal_key}")
         
-        # Vérifier si la suppression a réussi
+        # Check if deletion succeeded
         if echo "$delete_response" | grep -q '"status":"deleted"'; then
             deleted_count=$((deleted_count + 1))
             deleted_ids+=("$tid")
             if [ "$verbose" = "true" ]; then
-                echo -e "${GREEN}✓ Supprimé: ${tid}${NC}" >&2
+                echo -e "${GREEN}✓ Deleted: ${tid}${NC}" >&2
             fi
         else
             failed_count=$((failed_count + 1))
             failed_ids+=("$tid")
             if [ "$verbose" = "true" ]; then
-                echo -e "${RED}❌ Échec: ${tid}${NC}" >&2
+                echo -e "${RED}❌ Failed: ${tid}${NC}" >&2
                 echo "$delete_response" >&2
             fi
         fi
     done
     
-    # Afficher le résultat
+    # Show result
     local result_json="{\"deleted\": ${deleted_count}, \"failed\": ${failed_count}, \"total\": ${count}}"
     
     if command -v jq &> /dev/null; then
@@ -1667,9 +1785,9 @@ action_purge() {
     
     if [ "$verbose" = "true" ]; then
         echo "" >&2
-        echo -e "${GREEN}✓ ${deleted_count} transcription(s) supprimée(s)${NC}" >&2
+        echo -e "${GREEN}✓ ${deleted_count} transcription(s) deleted${NC}" >&2
         if [ "$failed_count" -gt 0 ]; then
-            echo -e "${RED}❌ ${failed_count} échec(s)${NC}" >&2
+            echo -e "${RED}❌ ${failed_count} failures${NC}" >&2
         fi
     fi
     
@@ -1678,15 +1796,15 @@ action_purge() {
     fi
 }
 
-# Fonction principale
+# Main function
 main() {
-    # La configuration est déjà chargée au début du script
-    # load_config() peut être utilisée pour recharger si nécessaire
+    # Configuration is already loaded at the beginning of the script
+    # load_config() can be used to reload if necessary
     
-    # Variables pour les options globales
+    # Variables for global options
     local action=""
     
-    # Parser les arguments globaux
+    # Parse global arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
             --action=*)
@@ -1698,7 +1816,7 @@ main() {
                 shift 2
                 ;;
             -h|--help)
-                # Si une action est déjà définie, laisser --help passer à l'action
+                # If action is already defined, let --help pass to the action
                 if [ -n "$action" ]; then
                     break
                 fi
@@ -1718,28 +1836,28 @@ main() {
                 shift 2
                 ;;
             *)
-                # Si pas d'action définie, afficher l'aide
+                # If no action is defined, show help
                 if [ -z "$action" ]; then
-                    echo -e "${RED}❌ Action requise. Utilisez --action=<action>${NC}" >&2
+                    echo -e "${RED}❌ Action required. Use --action=<action>${NC}" >&2
                     echo ""
                     show_help
                     exit 1
                 fi
-                # Passer les arguments restants à l'action
+                # Pass remaining arguments to action
                 break
                 ;;
         esac
     done
     
-    # Vérifier qu'une action est spécifiée
+    # Check that action is specified
     if [ -z "$action" ]; then
-        echo -e "${RED}❌ Action requise. Utilisez --action=<action>${NC}" >&2
+        echo -e "${RED}❌ Action required. Use --action=<action>${NC}" >&2
         echo ""
         show_help
         exit 1
     fi
     
-    # Exécuter l'action appropriée
+    # Execute appropriate action
     case "$action" in
         transcribe)
             action_transcribe "$@"
@@ -1754,7 +1872,7 @@ main() {
             action_purge "$@"
             ;;
         *)
-            echo -e "${RED}❌ Action inconnue: $action${NC}" >&2
+            echo -e "${RED}❌ Unknown action: $action${NC}" >&2
             echo ""
             show_help
             exit 1
@@ -1762,6 +1880,6 @@ main() {
     esac
 }
 
-# Exécuter la fonction principale
+# Execute main function
 main "$@"
 
