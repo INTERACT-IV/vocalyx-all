@@ -81,3 +81,5 @@ build/
 .mypy_cache/
 
 .env.registry
+
+*.wav

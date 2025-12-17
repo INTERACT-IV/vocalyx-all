@@ -109,9 +109,9 @@ services:
       DATABASE_URL: postgresql://vocalyx:vocalyx_secret@postgres:5432/vocalyx_db
       
       # Redis & Celery
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      REDIS_URL: redis://vocalyx-redis:6379/0
+      CELERY_BROKER_URL: redis://vocalyx-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://vocalyx-redis:6379/0
       
       # Sécurité (⚠️ CHANGER EN PRODUCTION)
       INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
@@ -164,9 +164,9 @@ services:
       DATABASE_URL: postgresql://vocalyx:vocalyx_secret@postgres:5432/vocalyx_db
       
       # Redis & Celery
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      REDIS_URL: redis://vocalyx-redis:6379/0
+      CELERY_BROKER_URL: redis://vocalyx-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://vocalyx-redis:6379/0
       
       # Sécurité (⚠️ CHANGER EN PRODUCTION)
       INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
@@ -270,11 +270,11 @@ services:
       VOCALYX_API_URL: http://haproxy:8000
       
       # Celery
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://vocalyx-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://vocalyx-redis:6379/0
       
       # Redis Transcription (DB dédiée pour les segments)
-      REDIS_TRANSCRIPTION_URL: redis://redis:6379/2
+      REDIS_TRANSCRIPTION_URL: redis://vocalyx-redis:6379/2
       
       # Whisper
       WHISPER_MODEL: ./models/transcribe/openai-whisper-small
@@ -306,7 +306,6 @@ services:
         condition: service_started
     networks:
       - vocalyx-network
-    # ✅ AJOUT: Limites de ressources (Whisper consomme beaucoup)
     deploy:
       resources:
         limits:
@@ -319,7 +318,7 @@ services:
     command: >
       celery -A worker.celery_app worker
       --loglevel=info
-      --concurrency=2
+      --concurrency=1
       --hostname=worker-01@%h
       --without-gossip
       --without-mingle
@@ -343,11 +342,11 @@ services:
       VOCALYX_API_URL: http://haproxy:8000
       
       # Celery
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://vocalyx-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://vocalyx-redis:6379/0
       
       # Redis Transcription (DB dédiée pour les segments)
-      REDIS_TRANSCRIPTION_URL: redis://redis:6379/2
+      REDIS_TRANSCRIPTION_URL: redis://vocalyx-redis:6379/2
       
       # Whisper
       WHISPER_MODEL: ./models/transcribe/openai-whisper-small
@@ -392,7 +391,7 @@ services:
     command: >
       celery -A worker.celery_app worker
       --loglevel=info
-      --concurrency=2
+      --concurrency=1
       --hostname=worker-02@%h
       --without-gossip
       --without-mingle
@@ -407,8 +406,8 @@ services:
     container_name: vocalyx-flower
     restart: unless-stopped
     environment:
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://vocalyx-redis:6379/0
+      CELERY_RESULT_BACKEND: redis://vocalyx-redis:6379/0
       FLOWER_PORT: 5555
     ports:
       - "5555:5555"
@@ -424,7 +423,7 @@ services:
         reservations:
           memory: 128M
     command: >
-      celery --broker=redis://redis:6379/0 flower
+      celery --broker=redis://vocalyx-redis:6379/0 flower
       --port=5555
 
 

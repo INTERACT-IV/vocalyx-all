@@ -25,7 +25,7 @@ Volume=/opt/vocalyx/shared/models/enrichment:/app/models/enrichment:Z
 #CPUQuota=400%
 Memory=4G
 
-Exec=celery -A worker.celery_app worker --loglevel=info --concurrency=2 --hostname=enrichment-worker --without-gossip --without-mingle -Q enrichment
+Exec=celery -A worker.celery_app worker --loglevel=info --concurrency=1 --hostname=enrichment-worker --without-gossip --without-mingle -Q enrichment
 
 [Service]
 Restart=always

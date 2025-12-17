@@ -33,7 +33,7 @@ Volume=/opt/vocalyx/shared/logs:/app/logs:Z
 #Memory=128G
 
 # Commande de démarrage complexe
-Exec=celery -A worker.celery_app worker --loglevel=info --concurrency=2 --without-gossip --without-mingle -Q transcription
+Exec=celery -A worker.celery_app worker --loglevel=info --concurrency=1 --without-gossip --without-mingle -Q transcription
 
 [Service]
 Restart=always
