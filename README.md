@@ -87,7 +87,7 @@ La configuration se fait via les variables d'environnement dans `docker-compose.
 
 - **Base de données** : `DATABASE_URL`
 - **Redis** : `REDIS_URL`, `CELERY_BROKER_URL`
-- **Sécurité** : `INTERNAL_API_KEY`, `ADMIN_PROJECT_NAME`
+- **Sécurité** : `ADMIN_PROJECT_NAME`
 - **Logging** : `LOG_LEVEL`, `LOG_FILE_PATH`
 
 ## Documentation

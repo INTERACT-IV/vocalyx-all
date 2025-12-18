@@ -12,7 +12,6 @@ Environment=VOCALYX_API_URL=http://vocalyx-haproxy:8100
 Environment=CELERY_BROKER_URL=redis://vocalyx-redis:6379/0
 Environment=CELERY_RESULT_BACKEND=redis://vocalyx-redis:6379/0
 Environment=LLM_DEVICE=cpu
-Environment=INTERNAL_API_KEY=secret_key_pour_comms_internes_123456
 Environment=LOG_LEVEL=INFO
 Environment=LOG_FILE_PATH=/app/logs/vocalyx-enrichment-%i.log
 

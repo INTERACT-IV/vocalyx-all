@@ -195,9 +195,6 @@ load_config() {
         API_URL="${VOCALYX_API_URL:-${API_URL:-http://localhost:8000}}"
         USERNAME="${VOCALYX_USERNAME:-${USERNAME:-admin}}"
         PASSWORD="${VOCALYX_PASSWORD:-${PASSWORD:-}}"
-        # Internal key can be defined via INTERNAL_API_KEY or VOCALYX_INTERNAL_KEY
-        # It is exported to be accessible in functions
-        export INTERNAL_API_KEY="${INTERNAL_API_KEY:-${VOCALYX_INTERNAL_KEY:-}}"
         echo -e "${BLUE}✓ Configuration chargée depuis $CONFIG_FILE${NC}" >&2
     fi
 }
@@ -265,7 +262,7 @@ get_project_api_key() {
     echo "$api_key"
 }
 
-# Get admin project API key (used as internal key for DELETE)
+# Get admin project API key
 get_admin_api_key() {
     local username=$1
     local password=$2
@@ -1671,27 +1668,6 @@ action_purge() {
         fi
     fi
     
-    # Retrieve internal key (required for DELETE endpoint)
-    # The internal key is a server config, it must be provided in ~/.vocalyx_config
-    # It corresponds to INTERNAL_API_KEY in docker-compose.yml or config.ini
-    local internal_key="${INTERNAL_API_KEY:-${VOCALYX_INTERNAL_KEY:-}}"
-    
-    if [ -z "$internal_key" ]; then
-        if [ "$verbose" = "true" ]; then
-            echo -e "${RED}❌ Internal key required for deletion${NC}" >&2
-            echo -e "${YELLOW}   DELETE endpoint requires X-Internal-Key${NC}" >&2
-            echo -e "${YELLOW}   Define INTERNAL_API_KEY or VOCALYX_INTERNAL_KEY in ~/.vocalyx_config${NC}" >&2
-            echo -e "${YELLOW}   Example: INTERNAL_API_KEY=secret_key_for_internal_comms_123456${NC}" >&2
-        else
-            echo "{\"error\": \"Internal key required for deletion. Define INTERNAL_API_KEY or VOCALYX_INTERNAL_KEY in your configuration\"}" >&2
-        fi
-        exit 1
-    fi
-    
-    if [ "$verbose" = "true" ]; then
-        echo -e "${GREEN}✓ Internal key found${NC}" >&2
-    fi
-    
     # Show number of transcriptions to delete
     local count=${#transcription_ids[@]}
     
@@ -1752,10 +1728,9 @@ action_purge() {
     local failed_ids=()
     
     for tid in "${transcription_ids[@]}"; do
-        # Use internal key (DELETE endpoint requires X-Internal-Key)
+        # Delete transcription
         local delete_response
-        delete_response=$(curl -s -X DELETE "${API_URL}/api/transcriptions/${tid}" \
-            -H "X-Internal-Key: ${internal_key}")
+        delete_response=$(curl -s -X DELETE "${API_URL}/api/transcriptions/${tid}")
         
         # Check if deletion succeeded
         if echo "$delete_response" | grep -q '"status":"deleted"'; then

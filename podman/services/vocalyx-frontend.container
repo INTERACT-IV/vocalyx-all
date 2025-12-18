@@ -9,7 +9,6 @@ Network=vocalyx-network
 PublishPort=8090:8080
 
 Environment=VOCALYX_API_URL=http://vocalyx-haproxy:8100
-Environment=INTERNAL_API_KEY=secret_key_pour_comms_internes_123456
 Environment=ADMIN_PROJECT_NAME=ISICOMTECH
 Environment=LOG_LEVEL=INFO
 Environment=LOG_FILE_PATH=/app/logs/vocalyx-frontend.log

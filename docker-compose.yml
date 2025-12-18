@@ -113,8 +113,7 @@ services:
       CELERY_BROKER_URL: redis://vocalyx-redis:6379/0
       CELERY_RESULT_BACKEND: redis://vocalyx-redis:6379/0
       
-      # Sécurité (⚠️ CHANGER EN PRODUCTION)
-      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
+      # Sécurité
       ADMIN_PROJECT_NAME: ISICOMTECH
       
       # CORS (inclure HAProxy et frontend)
@@ -168,8 +167,7 @@ services:
       CELERY_BROKER_URL: redis://vocalyx-redis:6379/0
       CELERY_RESULT_BACKEND: redis://vocalyx-redis:6379/0
       
-      # Sécurité (⚠️ CHANGER EN PRODUCTION)
-      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
+      # Sécurité
       ADMIN_PROJECT_NAME: ISICOMTECH
       
       # CORS (inclure HAProxy et frontend)
@@ -219,8 +217,7 @@ services:
       # API URL - passe par HAProxy pour le load balancing
       VOCALYX_API_URL: http://haproxy:8000
       
-      # Sécurité (⚠️ DOIT être identique à vocalyx-api)
-      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
+      # Sécurité
       ADMIN_PROJECT_NAME: ISICOMTECH
       
       # Logging
@@ -287,9 +284,6 @@ services:
       VAD_ENABLED: "true"
 
       UPLOAD_DIR: /app/shared_uploads
-      
-      # Sécurité (⚠️ DOIT être identique à vocalyx-api)
-      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
       
       # Logging
       LOG_LEVEL: INFO
@@ -359,9 +353,6 @@ services:
       VAD_ENABLED: "true"
 
       UPLOAD_DIR: /app/shared_uploads
-      
-      # Sécurité (⚠️ DOIT être identique à vocalyx-api)
-      INTERNAL_API_KEY: secret_key_pour_comms_internes_123456
       
       # Logging
       LOG_LEVEL: INFO

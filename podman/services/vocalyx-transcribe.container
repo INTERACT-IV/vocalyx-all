@@ -19,7 +19,6 @@ Environment=WHISPER_LANGUAGE=fr
 Environment=MAX_WORKERS=2
 Environment=VAD_ENABLED=true
 Environment=UPLOAD_DIR=/app/shared_uploads
-Environment=INTERNAL_API_KEY=secret_key_pour_comms_internes_123456
 Environment=LOG_LEVEL=INFO
 Environment=LOG_FILE_PATH=/app/logs/vocalyx-transcribe.log
 

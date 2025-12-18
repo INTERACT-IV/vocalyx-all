@@ -14,7 +14,6 @@ Environment=DATABASE_URL=postgresql://vocalyx:vocalyx_secret@vocalyx-postgres:54
 Environment=REDIS_URL=redis://vocalyx-redis:6379/0
 Environment=CELERY_BROKER_URL=redis://vocalyx-redis:6379/0
 Environment=CELERY_RESULT_BACKEND=redis://vocalyx-redis:6379/0
-Environment=INTERNAL_API_KEY=secret_key_pour_comms_internes_123456
 Environment=ADMIN_PROJECT_NAME=ISICOMTECH
 Environment=CORS_ORIGINS=http://localhost:8080,http://vocalyx-frontend:8080,http://localhost:8000,http://vocalyx-haproxy:8000,http://vocalyx-haproxy:8000,http://10.9.8.50:8100,http://10.9.8.50:8000
 Environment=UPLOAD_DIR=/app/shared_uploads

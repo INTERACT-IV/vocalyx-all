@@ -68,7 +68,6 @@ Créez ce fichier avec le contenu suivant :
 VOCALYX_API_URL=http://localhost:8000
 VOCALYX_USERNAME=admin
 VOCALYX_PASSWORD=mon_mot_de_passe
-VOCALYX_INTERNAL_KEY=secret_key_pour_comms_internes_123456  # Pour l'action purge
 ```
 
 **Note** : Assurez-vous que le fichier a les bonnes permissions :
@@ -271,10 +270,6 @@ Supprime des transcriptions selon des critères (fichiers audio inclus).
 ./vocalyx_cli --action=purge -P ISICOMTECH --dry-run
 ```
 
-#### Note importante
-
-L'action `purge` nécessite la clé interne (`INTERNAL_API_KEY` ou `VOCALYX_INTERNAL_KEY`) définie dans votre fichier de configuration. Cette clé est utilisée pour les communications internes avec l'API.
-
 ---
 
 ## Options globales
@@ -307,7 +302,6 @@ Pour obtenir l'aide détaillée d'une action spécifique :
 | `VOCALYX_USERNAME` | Nom d'utilisateur | `admin` |
 | `VOCALYX_PASSWORD` | Mot de passe | (aucun) |
 | `VOCALYX_PROJECT_API_KEY` | Clé API du projet (si fournie, skip l'authentification) | (aucun) |
-| `VOCALYX_INTERNAL_KEY` | Clé interne pour l'action purge | (aucun) |
 
 ---
 
@@ -440,8 +434,7 @@ done
 **Problème** : `❌ Clé interne requise pour la suppression`
 
 **Solutions** :
-- Ajoutez `INTERNAL_API_KEY` ou `VOCALYX_INTERNAL_KEY` dans `~/.vocalyx_config`
-- Contactez l'administrateur pour obtenir la clé interne
+- Vérifiez que vous avez les permissions nécessaires pour supprimer des transcriptions
 
 ### Timeout lors de l'attente
 
