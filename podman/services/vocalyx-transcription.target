@@ -1,0 +1,7 @@
+[Unit]
+Description=Vocalyx Transcription Workers (Scale Set)
+# When this target starts, it starts instances 1 to 5
+Wants=vocalyx-transcribe@01.service vocalyx-transcribe@02.service vocalyx-transcribe@03.service vocalyx-transcribe@04.service vocalyx-transcribe@05.service
+
+[Install]
+WantedBy=default.target
