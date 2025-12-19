@@ -1,0 +1,12 @@
+[Unit]
+Description=Vocalyx Transcription Worker Pod
+After=network-online.target
+
+[Pod]
+# The name of the pod in Podman
+PodName=vocalyx-workers
+# The network is now managed by the Pod, not the individual containers
+Network=vocalyx-network
+
+[Install]
+WantedBy=vocalyx-transcription.target

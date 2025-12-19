@@ -1,0 +1,43 @@
+[Unit]
+Description=Vocalyx Transcription Worker %i
+After=network-online.target vocalyx-workers.pod
+BindsTo=vocalyx-workers.pod
+
+[Container]
+Image=localhost/vocalyx-transcribe:latest
+ContainerName=vocalyx-transcribe-%i
+# Crucial: This tells the container to run inside the pod defined above
+Pod=vocalyx-workers.pod
+
+# --- Configuration ---
+Environment=VOCALYX_API_URL=http://10.9.8.50:8000
+Environment=CELERY_BROKER_URL=redis://vocalyx-redis:6379/0
+Environment=CELERY_RESULT_BACKEND=redis://vocalyx-redis:6379/0
+
+# Configuration Whisper
+Environment=WHISPER_MODEL=/app/models/openai-whisper-small
+Environment=WHISPER_DEVICE=cpu
+Environment=WHISPER_COMPUTE_TYPE=int8
+Environment=WHISPER_LANGUAGE=fr
+Environment=MAX_WORKERS=60
+Environment=VAD_ENABLED=true
+Environment=UPLOAD_DIR=/app/shared_uploads
+
+# Logs
+Environment=LOG_LEVEL=INFO
+Environment=LOG_FILE_PATH=/app/logs/vocalyx-transcribe-%i.log
+
+# --- Volumes ---
+Volume=/opt/vocalyx/shared/uploads:/app/shared_uploads:Z
+Volume=/opt/vocalyx/shared/models:/app/models:Z
+Volume=/opt/vocalyx/shared/logs:/app/logs:Z
+
+
+# --- Commande de démarrage ---
+Environment=INSTANCE_NAME=transcribe-worker-%i
+Exec=/bin/sh -c "celery -A worker.celery_app worker --loglevel=info --concurrency=1 --prefetch-multiplier=1 --hostname=$INSTANCE_NAME --without-gossip --without-mingle -Q transcription"
+
+[Service]
+Restart=always
+# This ensures the service acts as part of the pod lifecycle
+TimeoutStartSec=900
