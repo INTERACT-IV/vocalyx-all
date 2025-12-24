@@ -82,4 +82,5 @@ build/
 
 .env.registry
 
-*.wav
+*.wav*.bk
+config.initest

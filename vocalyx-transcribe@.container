@@ -1,0 +1,48 @@
+[Unit]
+Description=Vocalyx Transcription Worker %i
+After=network-online.target
+
+[Container]
+Image=localhost/vocalyx-transcribe:latest
+ContainerName=vocalyx-transcribe-%i
+Network=vocalyx-network
+
+# --- Configuration ---
+Environment=VOCALYX_API_URL=http://10.9.8.50:8000
+Environment=CELERY_BROKER_URL=redis://vocalyx-redis:6379/0
+Environment=CELERY_RESULT_BACKEND=redis://vocalyx-redis:6379/0
+
+# Configuration Whisper
+Environment=WHISPER_MODEL=/app/models/openai-whisper-small
+Environment=WHISPER_DEVICE=cpu
+Environment=WHISPER_COMPUTE_TYPE=int8
+Environment=WHISPER_LANGUAGE=fr
+Environment=MAX_WORKERS=60
+Environment=VAD_ENABLED=true
+Environment=UPLOAD_DIR=/app/shared_uploads
+
+# Logs
+Environment=LOG_LEVEL=INFO
+Environment=LOG_FILE_PATH=/app/logs/vocalyx-transcribe-%i.log
+
+# --- Volumes ---
+# Note: Assurez-vous que ces dossiers existent sur l'hôte avec les bonnes permissions
+Volume=/opt/vocalyx/shared/uploads:/app/shared_uploads:Z
+Volume=/opt/vocalyx/shared/models:/app/models:Z
+Volume=/opt/vocalyx/shared/logs:/app/logs:Z
+
+# --- Ressources ---
+# 4 vCPU (400%) et 8Go RAM comme dans le compose original
+PodmanArgs=--cpus=16
+Memory=16G
+
+# --- Commande de démarrage ---
+# On utilise une variable d'env pour le hostname pour éviter le bug du %i dans Exec
+Environment=INSTANCE_NAME=transcribe-worker-%i
+
+# On surcharge la CMD du Dockerfile pour spécifier la queue 'transcription'
+# L'utilisation de /bin/sh -c permet d'interpréter correctement la variable $CELERY_HOSTNAME
+Exec=/bin/sh -c "celery -A worker.celery_app worker --loglevel=info --concurrency=1 --prefetch-multiplier=1 --hostname=$INSTANCE_NAME --without-gossip --without-mingle -Q transcription"
+
+[Service]
+Restart=always

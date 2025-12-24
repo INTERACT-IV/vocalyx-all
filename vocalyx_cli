@@ -77,6 +77,7 @@ Required arguments:
 
 Transcribe specific options:
   -m, --model MODEL          Whisper model (tiny|base|small|medium|large-v3-turbo, default: small)
+  -l, --language LANGUAGE    Language code (e.g. fr, en, es). Default: fr
   --no-vad                   Disable VAD (Voice Activity Detection)
   --diarization              Enable speaker diarization
   --enrichment               Enable automatic enrichment after transcription (default prompts)
@@ -350,10 +351,11 @@ process_single_file() {
     local diarization="$5"
     local enrichment="$6"
     local llm_model="$7"
-    local wait_for_completion="$8"
-    local verbose="$9"
-    local api_key="${10}"
-    local password="${11}"  # Pass the global PASSWORD variable
+    local language="$8"
+    local wait_for_completion="$9"
+    local verbose="${10}"
+    local api_key="${11}"
+    local password="${12}"  # Pass the global PASSWORD variable
     
     # Check that file exists
     if [ ! -f "$audio_file" ]; then
@@ -403,6 +405,7 @@ process_single_file() {
         echo -e "   File: $audio_file" >&2
         echo -e "   Project: $project_name" >&2
         echo -e "   Model: $whisper_model" >&2
+        echo -e "   Language: ${language:-fr}" >&2
         if [ "$enrichment" = "true" ]; then
             echo -e "   Enrichment: enabled" >&2
             if [ -n "$llm_model" ]; then
@@ -419,6 +422,7 @@ process_single_file() {
             -F "file=@${audio_file}" \
             -F "project_name=${project_name}" \
             -F "whisper_model=${whisper_model}" \
+            -F "language=${language:-fr}" \
             -F "use_vad=${use_vad}" \
             -F "diarization=${diarization}" \
             -F "enrichment=${enrichment}" \
@@ -429,6 +433,7 @@ process_single_file() {
             -F "file=@${audio_file}" \
             -F "project_name=${project_name}" \
             -F "whisper_model=${whisper_model}" \
+            -F "language=${language:-fr}" \
             -F "use_vad=${use_vad}" \
             -F "diarization=${diarization}" \
             -F "enrichment=${enrichment}")
@@ -672,6 +677,7 @@ action_transcribe() {
     local audio_file=""
     local project_name=""
     local whisper_model="small"
+    local language=""
     local use_vad="true"
     local diarization="false"
     local enrichment="false"
@@ -696,6 +702,10 @@ action_transcribe() {
                 ;;
             -m|--model)
                 whisper_model="$2"
+                shift 2
+                ;;
+            -l|--language)
+                language="$2"
                 shift 2
                 ;;
             --no-vad)
@@ -843,7 +853,7 @@ action_transcribe() {
                 echo -e "${BLUE}➡️  Processing: $file${NC}" >&2
             fi
             
-            if process_single_file "$file" "$project_name" "$whisper_model" "$use_vad" "$diarization" "$enrichment" "$llm_model" "$wait_for_completion" "$verbose" "$api_key" "$PASSWORD"; then
+            if process_single_file "$file" "$project_name" "$whisper_model" "$use_vad" "$diarization" "$enrichment" "$llm_model" "$language" "$wait_for_completion" "$verbose" "$api_key" "$PASSWORD"; then
                 success_count=$((success_count + 1))
             else
                 failure_count=$((failure_count + 1))
@@ -862,7 +872,7 @@ action_transcribe() {
         fi
     else
         # Single file
-        process_single_file "$audio_file" "$project_name" "$whisper_model" "$use_vad" "$diarization" "$enrichment" "$llm_model" "$wait_for_completion" "$verbose" "$api_key" "$PASSWORD"
+        process_single_file "$audio_file" "$project_name" "$whisper_model" "$use_vad" "$diarization" "$enrichment" "$llm_model" "$language" "$wait_for_completion" "$verbose" "$api_key" "$PASSWORD"
         exit $?
     fi
 }
